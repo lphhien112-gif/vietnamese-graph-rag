@@ -33,8 +33,8 @@
 {\color{black}\rule{\linewidth}{2.5pt}}\\[1pt]{\color{black}\rule{\linewidth}{0.5pt}}\vspace{0.5cm}
 {\LARGE\bfseries BÁO CÁO PROJECT CUỐI KỲ}\\[8pt]
 {\fontsize{28}{36}\selectfont\bfseries VIETNAMESE GRAPH RAG}\\[6pt]
-{\large\bfseries Hệ thống Hỏi đáp Tiếng Việt}\\[6pt]
-{\large\bfseries dựa trên Đồ thị Tri thức}\\[10pt]
+{\large\bfseries Hệ thống Hỏi đáp Thông minh cho}\\[6pt]
+{\large\bfseries Thương mại Điện tử Tiếng Việt}\\[10pt]
 {\large\itshape Môn học: Xử Lý Ngôn Ngữ Tự Nhiên (NLP)}\vspace{0.3cm}
 {\color{black}\rule{\linewidth}{0.5pt}}\\[1pt]{\color{black}\rule{\linewidth}{2.5pt}}\vspace{1.5cm}
 \renewcommand{\arraystretch}{1.6}
@@ -57,26 +57,27 @@
 
 \subsection{Đặt vấn đề}
 
-Trong thời đại bùng nổ thông tin, khả năng \textbf{tìm kiếm và trả lời câu hỏi dựa trên tài liệu} (Question Answering) trở thành nhu cầu thiết yếu. Đặc biệt với \textbf{tiếng Việt}, thách thức lớn nằm ở đặc điểm ngôn ngữ: từ ghép, đa nghĩa, và thiếu công cụ NLP mạnh mẽ so với tiếng Anh.
+Thương mại điện tử (TMĐT) tại Việt Nam đang phát triển bùng nổ với các nền tảng như \textbf{Shopee, Lazada, Tiki}. Mỗi ngày, hàng triệu đánh giá sản phẩm được đăng tải, tạo ra nguồn dữ liệu khổng lồ nhưng \textbf{phi cấu trúc}. Người mua hàng thường gặp khó khăn khi tìm kiếm thông tin cụ thể về sản phẩm từ hàng nghìn bình luận --- ví dụ: ``Camera iPhone 15 chụp đêm có tốt không?'' hay ``Pin Samsung S24 dùng được bao lâu?''.
 
-\textbf{Retrieval-Augmented Generation (RAG)} là kiến trúc kết hợp giữa \textit{truy xuất thông tin} (Information Retrieval) và \textit{sinh văn bản} (Text Generation), cho phép mô hình ngôn ngữ trả lời dựa trên \textbf{nguồn tri thức cụ thể} thay vì chỉ dựa vào kiến thức đã huấn luyện.
+\textbf{Retrieval-Augmented Generation (RAG)} là kiến trúc kết hợp giữa \textit{truy xuất thông tin} (Information Retrieval) và \textit{sinh văn bản} (Text Generation), cho phép mô hình ngôn ngữ trả lời dựa trên \textbf{nguồn tri thức cụ thể} --- ở đây là các đánh giá sản phẩm thực tế.
 
-\textbf{Graph RAG} mở rộng RAG truyền thống bằng cách bổ sung \textbf{đồ thị tri thức (Knowledge Graph)} --- lưu trữ thực thể và mối quan hệ --- giúp truy xuất chính xác hơn nhờ hiểu \textit{cấu trúc} của thông tin.
+\textbf{Graph RAG} mở rộng RAG truyền thống bằng cách bổ sung \textbf{đồ thị tri thức (Knowledge Graph)} --- lưu trữ mối quan hệ giữa sản phẩm, thương hiệu, tính năng và cảm xúc người dùng --- giúp truy xuất chính xác và có ngữ cảnh hơn.
 
 \subsection{Mục tiêu dự án}
 
 \begin{enumerate}[leftmargin=2cm]
-  \item Xây dựng hệ thống \textbf{Vietnamese Graph RAG} hoàn chỉnh cho bài toán hỏi đáp tiếng Việt.
-  \item \textbf{So sánh} các phương pháp biểu diễn văn bản: TF-IDF, Word2Vec, GloVe, PhoBERT.
-  \item \textbf{Trích xuất thực thể} (NER) tiếng Việt để xây dựng đồ thị tri thức.
-  \item \textbf{Đánh giá hiệu quả} của Graph RAG so với RAG truyền thống.
+  \item Xây dựng hệ thống \textbf{Vietnamese Graph RAG} cho bài toán hỏi đáp về sản phẩm TMĐT.
+  \item \textbf{So sánh} các phương pháp biểu diễn văn bản: TF-IDF, Word2Vec, GloVe, PhoBERT trên dữ liệu đánh giá sản phẩm.
+  \item \textbf{Trích xuất thực thể} (NER) từ đánh giá: tên sản phẩm, thương hiệu, tính năng, giá cả.
+  \item Xây dựng \textbf{Knowledge Graph} thể hiện quan hệ sản phẩm -- thuộc tính -- cảm xúc.
+  \item \textbf{Đánh giá hiệu quả} của Graph RAG so với RAG truyền thống trên domain TMĐT.
 \end{enumerate}
 
 \subsection{Phạm vi}
 
 \begin{itemize}[leftmargin=2cm]
-  \item \textbf{Ngôn ngữ}: Tiếng Việt
-  \item \textbf{Dataset}: UIT-ViQuAD 2.0 (Vietnamese Question Answering) + Wikipedia tiếng Việt
+  \item \textbf{Domain}: Thương mại điện tử --- Đánh giá smartphone tiếng Việt
+  \item \textbf{Dataset}: UIT-ViSFD (11,122 reviews smartphone) + ViCloABSA (7,000 reviews thời trang)
   \item \textbf{Mô hình}: TF-IDF, Word2Vec, GloVe, PhoBERT, Attention mechanism
   \item \textbf{LLM}: Gemini API / DeepSeek API (cho phần Generation)
 \end{itemize}
@@ -105,7 +106,7 @@ tokens = word_tokenize(text, format="text")
   \text{TF-IDF}(t, d) = \text{TF}(t, d) \times \log\frac{N}{1 + \text{DF}(t)}
 \]
 
-Trong dự án, TF-IDF được sử dụng làm \textbf{baseline} cho việc truy xuất tài liệu.
+Trong dự án, TF-IDF được sử dụng làm \textbf{baseline} cho việc truy xuất đánh giá sản phẩm liên quan đến câu hỏi của người dùng.
 
 \subsection{Word Embeddings: Word2Vec và GloVe}
 
@@ -139,7 +140,15 @@ RAG kết hợp hai thành phần:
 
 \subsection{Knowledge Graph và Graph RAG}
 
-Knowledge Graph lưu trữ thông tin dưới dạng \textbf{bộ ba} (triple): $(h, r, t)$ --- head entity, relation, tail entity. Graph RAG bổ sung bước \textbf{graph traversal} vào pipeline RAG, cho phép truy xuất thông tin có cấu trúc.
+Knowledge Graph lưu trữ thông tin dưới dạng \textbf{bộ ba} (triple): $(h, r, t)$ --- head entity, relation, tail entity. Ví dụ trong TMĐT:
+
+\begin{center}
+\texttt{(iPhone\_15, thuộc\_thương\_hiệu, Apple)} \\
+\texttt{(iPhone\_15, có\_tính\_năng, Camera\_48MP)} \\
+\texttt{(Camera\_48MP, được\_đánh\_giá, Tích\_cực\_85\%)}
+\end{center}
+
+Graph RAG bổ sung bước \textbf{graph traversal} vào pipeline RAG, cho phép truy xuất thông tin có cấu trúc --- ví dụ khi hỏi về ``camera iPhone 15'', hệ thống có thể duyệt graph để tìm tất cả đánh giá liên quan đến tính năng camera.
 
 % ===================================================================
 \section{Dataset và Tiền xử lý dữ liệu}
@@ -154,30 +163,42 @@ Knowledge Graph lưu trữ thông tin dưới dạng \textbf{bộ ba} (triple): 
 \toprule
 \textbf{Dataset} & \textbf{Tác vụ} & \textbf{Kích thước} & \textbf{Nguồn} \\
 \midrule
-UIT-ViQuAD 2.0 & Question Answering & 35,000+ QA pairs & HuggingFace \\
+UIT-ViSFD & Aspect-Based Sentiment & 11,122 comments & Shopee \\
+ViCloABSA & Aspect-Based Sentiment & 7,000 comments & Shopee + Lazada \\
 PhoNER\_COVID19 & Named Entity Recognition & 10 entity types & HuggingFace \\
-Wikipedia tiếng Việt & Knowledge Base & 1.2M+ articles & HuggingFace \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Cấu trúc UIT-ViQuAD 2.0}
+\subsection{Dataset chính: UIT-ViSFD}
 
-Dataset UIT-ViQuAD 2.0 bao gồm các trường:
+\textbf{UIT-ViSFD} (Vietnamese Smartphone Feedback Dataset) là bộ dữ liệu đánh giá smartphone từ sàn TMĐT Việt Nam, được gán nhãn bởi con người với:
+
 \begin{itemize}
-  \item \texttt{context}: Đoạn văn bản nguồn (từ Wikipedia tiếng Việt)
-  \item \texttt{question}: Câu hỏi
-  \item \texttt{answers}: Câu trả lời (vị trí bắt đầu + text)
-  \item \texttt{is\_impossible}: Đánh dấu câu hỏi không thể trả lời
+  \item \textbf{10 aspect categories}: SCREEN, CAMERA, BATTERY, PERFORMANCE, STORAGE, DESIGN, PRICE, GENERAL, FEATURES, SER\&ACC (Service \& Accessories)
+  \item \textbf{3 sentiment polarities}: Positive, Negative, Neutral
+  \item \textbf{11,122 comments} với annotation ở mức aspect-level
 \end{itemize}
 
-\begin{lstlisting}[caption={Tải dataset UIT-ViQuAD 2.0}]
-from datasets import load_dataset
+\textbf{Ví dụ dữ liệu}:
+\begin{quote}
+\textit{``Camera chụp đêm rất nét, pin dùng được 2 ngày, nhưng giá hơi cao so với cấu hình.''}\\
+$\rightarrow$ CAMERA: Positive, BATTERY: Positive, PRICE: Negative
+\end{quote}
 
-dataset = load_dataset("taidng/UIT-ViQuAD2.0")
-print(f"Train: {len(dataset['train'])} samples")
-print(f"Validation: {len(dataset['validation'])} samples")
+\begin{lstlisting}[caption={Tải và khám phá dataset UIT-ViSFD}]
+import pandas as pd
+# Dataset co the tai tu GitHub UIT-NLP
+# hoac tu HuggingFace: SEACrowd/uit_visfd
+df = pd.read_csv("data/raw/UIT-ViSFD_train.csv")
+print(f"Total comments: {len(df)}")
+print(f"Aspects: {df['aspect'].unique()}")
+print(f"Sentiments: {df['polarity'].value_counts()}")
 \end{lstlisting}
+
+\subsection{Dataset bổ sung: ViCloABSA}
+
+\textbf{ViCloABSA} chứa 7,000 đánh giá quần áo từ Shopee và Lazada với 5 aspect (Chất liệu, Giá, Thiết kế, Giao hàng, Dịch vụ), giúp mở rộng knowledge base sang domain thời trang.
 
 \subsection{Pipeline tiền xử lý}
 
