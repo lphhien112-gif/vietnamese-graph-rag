@@ -44,10 +44,12 @@ class Config:
     logs_dir: str = "logs"
     embedding_model: str = "vinai/phobert-base-v2"
     max_seq_len: int = 128
+    aspect_clf_threshold: float = 0.5
     retrieval: RetrievalConfig = field(default_factory=RetrievalConfig)
     llm: LLMConfig = field(default_factory=LLMConfig)
-    # eval regression gate (CI fails if MRR of best config drops below this)
+    # eval regression gates (CI fails if dưới ngưỡng)
     eval_min_mrr: float = 0.30
+    eval_min_f1: float = 0.40
 
     # --- secrets via env only ---
     @property

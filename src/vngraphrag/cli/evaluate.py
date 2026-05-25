@@ -83,19 +83,52 @@ def run_eval(cfg: Config) -> dict:
     return results
 
 
+def run_clf_f1(cfg: Config) -> float | None:
+    """Micro-F1 của BiLSTM aspect classifier trên tập dev (None nếu chưa deploy model)."""
+    from ..core import load_visfd
+    from ..core.aspect_clf import AspectClassifier
+
+    clf = AspectClassifier.load(cfg.artifacts_dir)
+    if clf is None:
+        return None
+    dev = load_visfd(cfg.data_dir, "Dev.csv")
+    preds = clf.predict(list(dev["comment"]))
+    tp = fp = fn = 0
+    for gold, pred in zip(dev["aspects"], preds, strict=False):
+        g, p = set(gold), set(pred)
+        tp += len(g & p)
+        fp += len(p - g)
+        fn += len(g - p)
+    prec = tp / (tp + fp) if tp + fp else 0.0
+    rec = tp / (tp + fn) if tp + fn else 0.0
+    return round(2 * prec * rec / (prec + rec), 4) if prec + rec else 0.0
+
+
 def main():
     cfg = Config.load()
     results = run_eval(cfg)
+    clf_f1 = run_clf_f1(cfg)
     out = Path(cfg.artifacts_dir) / "metrics.json"
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(json.dumps(results, ensure_ascii=False, indent=2))
+    payload = {"retrieval": results, "aspect_clf_micro_f1": clf_f1}
+    out.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
 
+    failed = False
     best_mrr = max(r["MRR"] for r in results.values())
     if best_mrr < cfg.eval_min_mrr:
-        print(f"REGRESSION GATE FAILED: best MRR {best_mrr} < {cfg.eval_min_mrr}")
+        print(f"GATE FAIL: best MRR {best_mrr} < {cfg.eval_min_mrr}")
+        failed = True
+    else:
+        print(f"Gate OK: best MRR {best_mrr} >= {cfg.eval_min_mrr}")
+    if clf_f1 is not None:
+        if clf_f1 < cfg.eval_min_f1:
+            print(f"GATE FAIL: aspect-clf micro-F1 {clf_f1} < {cfg.eval_min_f1}")
+            failed = True
+        else:
+            print(f"Gate OK: aspect-clf micro-F1 {clf_f1} >= {cfg.eval_min_f1}")
+    if failed:
         sys.exit(1)
-    print(f"Gate OK: best MRR {best_mrr} >= {cfg.eval_min_mrr}")
 
 
 if __name__ == "__main__":

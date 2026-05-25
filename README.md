@@ -14,12 +14,17 @@
 
 Xây dựng hệ thống **Graph RAG** (Retrieval-Augmented Generation) cho domain **Thương mại Điện tử tiếng Việt**. Hệ thống cho phép người dùng đặt câu hỏi về sản phẩm (ví dụ: *"Camera iPhone 15 chụp đêm có tốt không?"*) và trả lời dựa trên đánh giá thực tế từ Shopee/Lazada, kết hợp Knowledge Graph để tăng chất lượng truy xuất.
 
-### Kiến thức NLP áp dụng
-- **Week 1**: TF-IDF — Baseline retrieval
-- **Week 2**: Word2Vec — Document embedding
-- **Week 3**: GloVe — Co-occurrence embedding  
-- **Week 4**: Attention — Re-ranking documents
-- **Week 5**: PhoBERT/Transformer — SOTA embedding + NER
+### Bám theo 6 lecture của môn (NLP_Introduction roadmap)
+| Lecture | Nội dung | Áp dụng trong project |
+|---|---|---|
+| Lec01 — Introduction | NLP/ML là gì | Đặt vấn đề Graph RAG |
+| **Lec02 — Word Representation** | one-hot, TF-IDF, Word2Vec, GloVe | Part 1 §5.1–5.3: TF-IDF · Word2Vec · GloVe-SVD |
+| **Lec03 — Subword Models** | BPE, subword | Part 1 §5.4: BPE tokenization (PhoBERT) |
+| **Lec04 — Compositional Semantics** | Document→Sentence→Phrase→Word | Knowledge Graph (brand→aspect→sentiment, shop→product) |
+| **Lec05 — Recurrent Neural Networks** | RNN/LSTM, dữ liệu tuần tự | Part 1 §6: BiLSTM phân loại aspect (micro-F1) |
+| **Lec06 — Attention & Transformer** | attention, encoder–decoder | Part 1 §5.5 PhoBERT · Part 2 §4 MaxSim re-ranking |
+
+→ Toàn bộ nuôi pipeline **Graph RAG** (Part 2): retrieve → graph context → sinh câu trả lời (OpenAI).
 
 ## 📦 Dataset
 
@@ -49,13 +54,15 @@ vietnamese-graph-rag/
 │   │   ├── embeddings.py    #    PhoBERT encoder (mean-pool + token-level) + maxsim
 │   │   ├── index.py         #    DocumentIndex: vector + meta, lưu/nạp CÓ VERSION
 │   │   └── kg.py            #    Knowledge Graph (build/save/load, query, product_context)
+│   │   └── aspect_clf.py    #    🧠 model BiLSTM ĐÃ TRAIN (deploy: nạp từ artifacts/aspect_clf.pt)
 │   ├── rag/                 # 🔗 suy luận
 │   │   ├── retrieval.py     #    HybridRetriever (bi-encoder → MaxSim → graph boost)
 │   │   ├── generate.py      #    OpenAI client + prompt grounding
-│   │   └── pipeline.py      #    GraphRAGPipeline: orchestrate + observability
+│   │   └── pipeline.py      #    GraphRAGPipeline: orchestrate + observability + classify_aspects
 │   └── cli/                 # ⌨️ entrypoints
 │       ├── build_index.py   #    build & persist index + KG
-│       ├── evaluate.py      #    P@k/MRR ablation + REGRESSION GATE cho CI
+│       ├── train_aspect.py  #    🧠 TRAIN BiLSTM → artifacts/aspect_clf.pt (không cần notebook)
+│       ├── evaluate.py      #    P@k/MRR ablation + F1 + REGRESSION GATE cho CI
 │       └── import_artifacts.py  # xác nhận artifacts xuất từ notebook
 ├── app/
 │   ├── api.py           # FastAPI: /health /query /feedback
@@ -85,7 +92,8 @@ data/raw ───────────────────► artifacts/
 |---|---|
 | Config + secret tách env | `config.py` + `.env` (key chỉ qua `OPENAI_API_KEY`) |
 | Artifact versioning | `index.py` manifest (hash model + #records) → tự rebuild khi lệch |
-| Serving API | `app/api.py` (FastAPI) |
+| **Train → deploy model** | BiLSTM train ở notebook §6 → lưu `artifacts/aspect_clf.pt` → `core/aspect_clf.py` nạp → phục vụ qua `POST /classify` (fallback keyword nếu chưa có model) |
+| Serving API | `app/api.py` (FastAPI: `/query` `/classify` `/feedback` `/health`) |
 | UI + feedback loop | `app/ui.py` (Gradio, 👍/👎 → `logs/feedback.jsonl`) |
 | Observability | mỗi query log latency + token + **cost USD** vào `logs/queries.jsonl` |
 | Eval + regression gate | `evaluate.py` → `metrics.json`, exit≠0 nếu MRR < `eval_min_mrr` |
@@ -98,6 +106,7 @@ make check                        # 👀 1 lệnh kiểm soát: syntax mọi .py
 export OPENAI_API_KEY=sk-...      # (Windows PowerShell: $env:OPENAI_API_KEY="sk-...")
 
 # Đường A — tính tại chỗ (cần GPU cho nhanh):
+make train                        # train BiLSTM → artifacts/aspect_clf.pt (deploy /classify + làm giàu KG)
 make index                        # encode ~10.9k review → artifacts/ (lần sau nạp lại, không tính lại)
 # Đường B — tái dùng kết quả notebook Kaggle:
 #   chạy notebook Part 2 §7 → tải artifacts/ về repo →

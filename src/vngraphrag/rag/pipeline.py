@@ -27,13 +27,14 @@ from .retrieval import HybridRetriever
 
 
 class GraphRAGPipeline:
-    def __init__(self, cfg: Config, encoder, index: DocumentIndex, kg, generator: Generator):
+    def __init__(self, cfg: Config, encoder, index: DocumentIndex, kg, generator: Generator, aspect_clf=None):
         self.cfg = cfg
         self.encoder = encoder
         self.index = index
         self.kg = kg
         self.retriever = HybridRetriever(index, encoder, cfg)
         self.generator = generator
+        self.aspect_clf = aspect_clf  # model BiLSTM đã train (None nếu chưa deploy)
         self.logger = QueryLogger(cfg.logs_dir)
 
     # ---------------------------------------------------------------
@@ -41,8 +42,10 @@ class GraphRAGPipeline:
     def from_artifacts(cls, cfg: Config | None = None, rebuild: bool = False) -> GraphRAGPipeline:
         cfg = cfg or Config.load()
         from ..core import PhoBERTEncoder
+        from ..core.aspect_clf import AspectClassifier
 
         encoder = PhoBERTEncoder(cfg.embedding_model, cfg.max_seq_len)
+        aspect_clf = AspectClassifier.load(cfg.artifacts_dir, cfg.aspect_clf_threshold)
 
         index = None if rebuild else DocumentIndex.load(cfg.artifacts_dir, cfg.embedding_model)
         kg_path = Path(cfg.artifacts_dir) / "kg.pkl"
@@ -52,12 +55,21 @@ class GraphRAGPipeline:
                 records = build_records(visfd, shopee)
                 index = DocumentIndex.build(records, encoder, cfg.embedding_model)
                 index.save(cfg.artifacts_dir)
-            kg = build_kg(visfd, shopee)
+            kg = build_kg(visfd, shopee, aspect_clf)  # model deploy vào KG
             save_kg(kg, kg_path)
         else:
             kg = load_kg(kg_path)
 
-        return cls(cfg, encoder, index, kg, Generator(cfg))
+        return cls(cfg, encoder, index, kg, Generator(cfg), aspect_clf)
+
+    # ---------------------------------------------------------------
+    def classify_aspects(self, text: str) -> list[str]:
+        """Dùng model BiLSTM đã deploy để dự đoán aspect (fallback: keyword)."""
+        if self.aspect_clf is not None:
+            return sorted(self.aspect_clf.predict([text])[0])
+        from ..core import aspects_from_text
+
+        return sorted(aspects_from_text(text))
 
     # ---------------------------------------------------------------
     def _graph_context(self, question: str) -> str:

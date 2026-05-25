@@ -47,10 +47,14 @@ def main():
         G = pickle.load(f)
     src = Counter(r.get("source") for r in idx.records)
 
+    has_clf = (d / "aspect_clf.pt").exists()
     print("✅ artifacts hợp lệ:")
     print(f"   index : {len(idx.records)} records · dim={idx.vectors.shape[1]} · version={idx.version}")
     print(f"   nguồn : {dict(src)}")
     print(f"   KG    : {G.number_of_nodes()} nodes, {G.number_of_edges()} edges")
+    print(
+        f"   model : aspect_clf.pt {'✅ (deploy /classify)' if has_clf else '— chưa có (/classify fallback keyword)'}"
+    )
     print("   → sẵn sàng serve: make api   (không cần encode lại corpus)")
 
 

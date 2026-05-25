@@ -37,7 +37,12 @@ def main():
     else:
         print(f"Index up-to-date (v{existing.version}); use --rebuild to force.")
 
-    kg = build_kg(visfd, shopee)
+    from ..core.aspect_clf import AspectClassifier
+
+    aspect_clf = AspectClassifier.load(cfg.artifacts_dir, cfg.aspect_clf_threshold)
+    if aspect_clf is not None:
+        print("Aspect classifier deployed -> dùng để gán aspect cho review Shopee.")
+    kg = build_kg(visfd, shopee, aspect_clf)
     save_kg(kg, Path(cfg.artifacts_dir) / "kg.pkl")
     print(f"Saved KG: {kg.number_of_nodes()} nodes, {kg.number_of_edges()} edges")
 

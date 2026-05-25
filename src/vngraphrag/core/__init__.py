@@ -11,6 +11,7 @@ from .data import (
     load_shopee,
     load_visfd,
     parse_label,
+    preprocess_vietnamese,
 )
 from .embeddings import PhoBERTEncoder, maxsim
 from .index import DocumentIndex
@@ -24,6 +25,7 @@ __all__ = [
     "aspects_from_text",
     "aspect_from_query",
     "detect_brand",
+    "preprocess_vietnamese",
     "load_visfd",
     "load_shopee",
     "build_records",

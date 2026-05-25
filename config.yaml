@@ -18,5 +18,6 @@ llm:
   temperature: 0.3
   max_tokens: 400
 
-# CI regression gate: build fails nếu MRR tốt nhất tụt dưới ngưỡng này
+# CI regression gates: build fails nếu tụt dưới ngưỡng
 eval_min_mrr: 0.30
+eval_min_f1: 0.40   # micro-F1 của BiLSTM aspect classifier (Lec05)

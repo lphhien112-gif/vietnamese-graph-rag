@@ -29,6 +29,7 @@ dev = ["pytest>=8.0", "ruff>=0.5"]
 
 [project.scripts]
 vngr-build-index = "vngraphrag.cli.build_index:main"
+vngr-train-aspect = "vngraphrag.cli.train_aspect:main"
 vngr-eval = "vngraphrag.cli.evaluate:main"
 vngr-import-artifacts = "vngraphrag.cli.import_artifacts:main"
 

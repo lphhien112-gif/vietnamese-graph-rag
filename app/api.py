@@ -44,9 +44,24 @@ class FeedbackIn(BaseModel):
     note: str = ""
 
 
+class ClassifyIn(BaseModel):
+    text: str
+
+
 @app.get("/health")
 def health():
-    return {"status": "ok", "llm_available": STATE.get("llm_available", False)}
+    pipe = STATE.get("pipeline")
+    return {
+        "status": "ok",
+        "llm_available": STATE.get("llm_available", False),
+        "aspect_clf_deployed": bool(pipe and pipe.aspect_clf is not None),
+    }
+
+
+@app.post("/classify")
+def classify(body: ClassifyIn):
+    """Phục vụ model BiLSTM đã train (Lec05): dự đoán aspect từ văn bản."""
+    return {"text": body.text, "aspects": STATE["pipeline"].classify_aspects(body.text)}
 
 
 @app.post("/query")

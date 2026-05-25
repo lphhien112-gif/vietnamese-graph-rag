@@ -13,7 +13,9 @@ from .data import ASPECTS, aspects_from_text
 SENT_COLOR = {"Positive": "lightgreen", "Negative": "lightcoral", "Neutral": "khaki"}
 
 
-def build_kg(visfd, shopee):
+def build_kg(visfd, shopee, aspect_clf=None):
+    """Dựng KG. Nếu có `aspect_clf` (BiLSTM đã train) thì dùng nó dự đoán aspect cho
+    review Shopee (vốn không có nhãn) -> cạnh product->aspect chính xác hơn keyword."""
     import networkx as nx
 
     G = nx.DiGraph()
@@ -36,18 +38,25 @@ def build_kg(visfd, shopee):
                 _bump(G, brand, asp, "reviewed_on")
 
     # Shopee: shop -> product -> aspect (mentions); product carries avg rating
+    # aspect lấy từ model BiLSTM đã train (nếu có) — đây là chỗ model được DEPLOY vào KG.
+    comments = [str(c) for c in shopee["comment"]] if len(shopee) else []
+    if aspect_clf is not None and comments:
+        shopee_aspects = aspect_clf.predict(comments)
+    else:
+        shopee_aspects = [aspects_from_text(c) for c in comments]
+
     prod_stats: dict[str, list] = {}
-    for _, r in shopee.iterrows():
+    for (_, r), asp_set in zip(shopee.iterrows(), shopee_aspects, strict=False):
         shop = str(r["shop_name"])[:40]
         prod = str(r["product_name"])[:50]
-        com = str(r["comment"])
         if not G.has_node(shop):
             G.add_node(shop, type="shop", color="violet")
         if not G.has_node(prod):
             G.add_node(prod, type="product", color="wheat")
         _bump(G, shop, prod, "sells")
-        for asp in aspects_from_text(com):
-            _bump(G, prod, asp, "mentions")
+        for asp in asp_set:
+            if asp in ASPECTS:
+                _bump(G, prod, asp, "mentions")
         prod_stats.setdefault(prod, []).append(r.get("rating_star"))
 
     for prod, rs in prod_stats.items():

@@ -1,4 +1,4 @@
-.PHONY: install check index eval import api ui test lint format docker
+.PHONY: install check index train eval import api ui test lint format docker
 
 install:
 	pip install -e ".[dev]"
@@ -11,6 +11,9 @@ import:           ## xác nhận artifacts/ (xuất từ notebook) hợp lệ đ
 
 index:            ## build/persist document index + KG
 	python -m vngraphrag.cli.build_index
+
+train:            ## train BiLSTM aspect classifier -> artifacts/aspect_clf.pt
+	python -m vngraphrag.cli.train_aspect
 
 eval:             ## run eval harness + regression gate
 	python -m vngraphrag.cli.evaluate
