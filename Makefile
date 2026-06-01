@@ -1,4 +1,4 @@
-.PHONY: install check index train eval import api ui test lint format docker
+.PHONY: install check index train eval import api ui test benchmark benchmark-save lint format docker
 
 install:
 	pip install -e ".[dev]"
@@ -24,8 +24,14 @@ api:              ## serve FastAPI
 ui:               ## launch Gradio UI (in-process)
 	python -m app.ui
 
-test:
-	pytest -q tests/test_core.py
+test:             ## toàn bộ unit test no-GPU (core + data + kg + retrieval)
+	pytest -q tests/test_core.py tests/test_data.py tests/test_kg.py tests/test_retrieval.py
+
+benchmark:        ## báo cáo benchmark đầy đủ (P@k/MRR/F1 + latency + quy mô) + so baseline
+	python scripts/benchmark.py
+
+benchmark-save:   ## lưu kết quả hiện tại làm baseline mới
+	python scripts/benchmark.py --save-baseline
 
 lint:
 	ruff check src app tests scripts

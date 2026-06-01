@@ -14,7 +14,9 @@ from ..core import (
     aspect_from_query,
     build_kg,
     build_records,
+    detect_brand,
     graph_query,
+    graph_query_brand,
     load_kg,
     load_shopee,
     load_visfd,
@@ -76,11 +78,20 @@ class GraphRAGPipeline:
         asp = aspect_from_query(question)
         gctx = ""
         if asp:
-            sd = graph_query(self.kg, asp)
+            # Nếu câu hỏi nhắc 1 hãng -> thống kê RIÊNG hãng đó; nếu hãng không có dữ
+            # liệu về aspect này thì quay về thống kê toàn corpus (tránh trả rỗng).
+            brand = detect_brand(question)
+            sd, label = None, asp
+            if brand != "Unknown":
+                bsd = graph_query_brand(self.kg, brand, asp)
+                if bsd:
+                    sd, label = bsd, f"{asp} ({brand})"
+            if sd is None:
+                sd = graph_query(self.kg, asp)
             tot = sum(v["count"] for v in sd.values())
             for _node, inf in sorted(sd.items(), key=lambda x: -x[1]["count"]):
                 pct = 100 * inf["count"] / tot if tot else 0
-                gctx += f"- {asp}/{inf['sentiment']}: {inf['count']} review ({pct:.0f}%)\n"
+                gctx += f"- {label}/{inf['sentiment']}: {inf['count']} review ({pct:.0f}%)\n"
         for prod, avg, ncnt in product_context(self.kg, question):
             gctx += f"- Sản phẩm '{prod}': {avg:.1f} sao ({ncnt} review)\n"
         return gctx

@@ -11,6 +11,15 @@ from pathlib import Path
 
 import yaml
 
+# Load .env at import time so OPENAI_API_KEY / OPENAI_BASE_URL / VNGR_LLM_MODEL are
+# available before any OpenAI client is constructed. No-op if python-dotenv missing.
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except Exception:
+    pass
+
 
 @dataclass
 class RetrievalConfig:

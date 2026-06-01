@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .data import ASPECTS, aspects_from_text
+from .data import _STOPWORDS, ASPECTS, aspects_from_text
 
 SENT_COLOR = {"Positive": "lightgreen", "Negative": "lightcoral", "Neutral": "khaki"}
 
@@ -33,9 +33,12 @@ def build_kg(visfd, shopee, aspect_clf=None):
             sn = f"{asp}#{sent}"
             if not G.has_node(sn):
                 G.add_node(sn, type="sentiment", sentiment=sent, color=SENT_COLOR.get(sent, "lightgray"))
-            _bump(G, asp, sn, "has_sentiment")
+            _bump(G, asp, sn, "has_sentiment")  # toàn corpus (fallback)
             if brand != "Unknown":
                 _bump(G, brand, asp, "reviewed_on")
+                # brand -> aspect#sentiment: cho phép truy vấn cảm xúc THEO HÃNG
+                # (vd "pin Samsung?" trả thống kê riêng Samsung, không phải toàn corpus).
+                _bump(G, brand, sn, "brand_sentiment")
 
     # Shopee: shop -> product -> aspect (mentions); product carries avg rating
     # aspect lấy từ model BiLSTM đã train (nếu có) — đây là chỗ model được DEPLOY vào KG.
@@ -83,16 +86,37 @@ def graph_query(G, aspect: str) -> dict:
     return out
 
 
+def graph_query_brand(G, brand: str, aspect: str) -> dict:
+    """Phân bố cảm xúc của `aspect` CHO RIÊNG `brand` (cạnh brand->aspect#sentiment).
+    Rỗng nếu hãng không có review về aspect đó -> caller tự fallback về thống kê toàn cục."""
+    out = {}
+    if brand in G:
+        prefix = f"{aspect}#"
+        for nb in G.successors(brand):
+            d = G.nodes[nb]
+            if d.get("type") == "sentiment" and nb.startswith(prefix):
+                out[nb] = {"sentiment": d["sentiment"], "count": G[brand][nb]["weight"]}
+    return out
+
+
 def product_context(G, question: str, limit: int = 3) -> list[tuple]:
-    ql = str(question).lower()
+    """Trả về product có TÊN khớp câu hỏi. Yêu cầu >=2 token đặc trưng trùng nhau để
+    tránh khớp giả do 1 từ chung chung (vd 'chụp' trong 'chụp đêm' vs 'tai nghe chụp tai').
+    Xếp theo số token trùng giảm dần -> sản phẩm liên quan nhất lên trước."""
+    def _toks(s):
+        return {t for t in re.findall(r"\w+", s.lower()) if len(t) > 2 and t not in _STOPWORDS}
+
+    qtokens = _toks(str(question))
     hits = []
     for n, d in G.nodes(data=True):
         if d.get("type") != "product":
             continue
-        toks = [t for t in re.findall(r"\w+", n.lower()) if len(t) > 3]
-        if any(t in ql for t in toks):
-            hits.append((n, d.get("avg_rating", 0.0), d.get("n_reviews", 0)))
-    return hits[:limit]
+        ptoks = _toks(n)
+        overlap = ptoks & qtokens
+        if len(overlap) >= 2:
+            hits.append((len(overlap), n, d.get("avg_rating", 0.0), d.get("n_reviews", 0)))
+    hits.sort(key=lambda x: -x[0])
+    return [(n, r, c) for _, n, r, c in hits[:limit]]
 
 
 def save_kg(G, path: str | Path):

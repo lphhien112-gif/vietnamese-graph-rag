@@ -21,6 +21,7 @@ tqdm>=4.66.0
 
 # LLM API (Generation) — cần OPENAI_API_KEY
 openai>=1.0.0
+python-dotenv>=1.0.0   # tự load .env (key + base_url + model)
 
 # Web UI demo
 gradio>=4.0.0

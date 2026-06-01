@@ -58,6 +58,7 @@ report/*.blg
 # LLMOps runtime artifacts (regenerable / large)
 artifacts/
 logs/
+.gradio/
 src/*.egg-info/
 
 # Secrets

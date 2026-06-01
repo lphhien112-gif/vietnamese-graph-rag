@@ -18,14 +18,14 @@ jobs:
       - name: Install light deps
         run: |
           python -m pip install --upgrade pip
-          pip install numpy pandas pyyaml pytest ruff
+          pip install numpy pandas pyyaml pytest ruff networkx
           pip install -e . --no-deps
 
       - name: Lint
-        run: ruff check src app tests
+        run: ruff check src app tests scripts
 
-      - name: Unit tests (no-GPU core)
-        run: pytest -q tests/test_core.py
+      - name: Unit tests (no-GPU)
+        run: pytest -q tests/test_core.py tests/test_data.py tests/test_kg.py tests/test_retrieval.py
 
   # Eval gate chạy thủ công / nightly vì cần model + artifacts (GPU)
   eval-gate:
@@ -37,5 +37,5 @@ jobs:
         with:
           python-version: "3.10"
       - run: pip install -e .
-      - run: python -m vngraphrag.build_index
-      - run: python -m vngraphrag.evaluate   # exit !=0 nếu MRR tụt dưới ngưỡng
+      - run: python -m vngraphrag.cli.build_index
+      - run: python -m vngraphrag.cli.evaluate   # exit !=0 nếu MRR tụt dưới ngưỡng
