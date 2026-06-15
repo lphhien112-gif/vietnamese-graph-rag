@@ -25,9 +25,10 @@ except Exception:
 class RetrievalConfig:
     n_candidates: int = 50
     top_k: int = 5
-    w_bi: float = 0.4
-    w_attn: float = 0.4
-    w_graph: float = 0.2
+    w_bi: float = 0.35
+    w_attn: float = 0.35
+    w_graph: float = 0.15
+    w_bm25: float = 0.15
 
 
 @dataclass

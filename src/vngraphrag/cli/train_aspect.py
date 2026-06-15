@@ -82,7 +82,26 @@ def main():
         prec = tp / (tp + fp) if tp + fp else 0.0
         rec = tp / (tp + fn) if tp + fn else 0.0
         f1 = 2 * prec * rec / (prec + rec) if prec + rec else 0.0
-        print(f"epoch {ep + 1}/{args.epochs} — dev micro-F1 = {f1:.4f}")
+
+        # Per-aspect F1 + macro-F1
+        per_f1 = []
+        for ai, asp in enumerate(ASPECTS):
+            a_g = g[:, ai]
+            a_p = pred[:, ai]
+            a_tp = (a_g & a_p).sum().item()
+            a_fp = (a_p & ~a_g).sum().item()
+            a_fn = (a_g & ~a_p).sum().item()
+            a_pr = a_tp / (a_tp + a_fp) if a_tp + a_fp else 0.0
+            a_rc = a_tp / (a_tp + a_fn) if a_tp + a_fn else 0.0
+            a_f1 = 2 * a_pr * a_rc / (a_pr + a_rc) if a_pr + a_rc else 0.0
+            per_f1.append(a_f1)
+        macro_f1 = sum(per_f1) / len(per_f1)
+
+        print(f"epoch {ep + 1}/{args.epochs} — micro-F1={f1:.4f}  macro-F1={macro_f1:.4f}")
+        if ep == args.epochs - 1:
+            print(f"\n{'Aspect':12} {'F1':>7}")
+            for asp, af1 in zip(ASPECTS, per_f1):
+                print(f"  {asp:12} {af1:.4f}")
 
     out = Path(cfg.artifacts_dir)
     out.mkdir(parents=True, exist_ok=True)

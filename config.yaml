@@ -9,9 +9,10 @@ max_seq_len: 128
 retrieval:
   n_candidates: 50
   top_k: 5
-  w_bi: 0.4
-  w_attn: 0.4
-  w_graph: 0.2
+  w_bi: 0.35
+  w_attn: 0.35
+  w_graph: 0.15
+  w_bm25: 0.15   # sparse retrieval: bắt exact-match mà dense bỏ sót
 
 llm:
   model: gpt-4o-mini
@@ -19,5 +20,5 @@ llm:
   max_tokens: 400
 
 # CI regression gates: build fails nếu tụt dưới ngưỡng
-eval_min_mrr: 0.30
-eval_min_f1: 0.40   # micro-F1 của BiLSTM aspect classifier (Lec05)
+eval_min_mrr: 0.55   # updated: 25-query eval, tighter threshold
+eval_min_f1: 0.70    # micro-F1 của BiLSTM aspect classifier (Lec05)
