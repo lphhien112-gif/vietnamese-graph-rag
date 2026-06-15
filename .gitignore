@@ -64,3 +64,6 @@ src/*.egg-info/
 # Secrets
 .env
 *.key
+
+# claude
+.claude/

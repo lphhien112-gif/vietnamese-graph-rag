@@ -157,7 +157,9 @@ _STOPWORDS = set(
 )
 _URL_RE = re.compile(r"http\S+|www\S+")
 _NONWORD_RE = re.compile(r"[^\w\s]")
-_NUM_RE = re.compile(r"\d+")
+# Chỉ bỏ SỐ ĐỨNG RIÊNG (\b\d+\b) — GIỮ token chữ-số mang nghĩa domain điện thoại
+# (vd "64gb", "120hz", "5g", "iphone13") thay vì xoá sạch chữ số làm mất tín hiệu cấu hình.
+_NUM_RE = re.compile(r"\b\d+\b")
 _SPACE_RE = re.compile(r"\s+")
 
 

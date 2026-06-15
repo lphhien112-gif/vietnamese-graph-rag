@@ -71,3 +71,28 @@ def test_mrr_none_relevant_is_zero():
     from vngraphrag.cli.evaluate import _mrr
 
     assert _mrr([0, 1], [set(), set()], "CAMERA") == 0.0
+
+
+def test_retriever_caches_doc_tokens():
+    """M5 fix: HybridRetriever memoize token-embedding theo doc idx -> encode 1 lần/doc."""
+    from vngraphrag.config import Config
+    from vngraphrag.rag.retrieval import HybridRetriever
+
+    class FakeEnc:
+        def __init__(self):
+            self.calls = 0
+
+        def encode_tokens(self, text):
+            self.calls += 1
+            return np.ones((2, 2), dtype="float32")
+
+    class FakeIdx:
+        records = [{"raw": "pin trâu dùng lâu"}, {"raw": "camera đẹp nét"}]
+
+    enc = FakeEnc()
+    r = HybridRetriever(FakeIdx(), enc, Config.load())
+    a = r._doc_tokens(0)
+    b = r._doc_tokens(0)
+    assert enc.calls == 1 and a is b  # cùng idx -> chỉ encode 1 lần, trả cache
+    r._doc_tokens(1)
+    assert enc.calls == 2  # idx khác -> encode thêm

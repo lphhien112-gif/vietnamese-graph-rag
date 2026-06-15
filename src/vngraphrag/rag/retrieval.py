@@ -33,6 +33,17 @@ class HybridRetriever:
         # Xây BM25 index một lần từ toàn bộ corpus
         tokenized = [r["raw"].lower().split() for r in index.records]
         self.bm25 = BM25Okapi(tokenized)
+        # Cache token-embedding theo doc idx: MaxSim re-encode token mỗi candidate rất tốn;
+        # các candidate phổ biến lặp lại nhiều truy vấn -> chỉ encode 1 lần/doc.
+        self._tok_cache: dict[int, np.ndarray] = {}
+
+    def _doc_tokens(self, idx: int) -> np.ndarray:
+        """Token-embedding của doc `idx`, có memoize để khỏi encode lại nhiều lần."""
+        cached = self._tok_cache.get(idx)
+        if cached is None:
+            cached = self.encoder.encode_tokens(self.index.records[idx]["raw"])
+            self._tok_cache[idx] = cached
+        return cached
 
     def retrieve(
         self,
@@ -64,9 +75,7 @@ class HybridRetriever:
         dense_set = set(dense_cand.tolist())
         attn_map: dict[int, float] = {}
         for i in dense_cand:
-            attn_map[int(i)] = maxsim(
-                q_tok, self.encoder.encode_tokens(self.index.records[int(i)]["raw"])
-            )
+            attn_map[int(i)] = maxsim(q_tok, self._doc_tokens(int(i)))
         attn = np.array([attn_map.get(int(i), 0.0) for i in cand])
 
         # ── (4) Graph boost: keyword aspect matching ──

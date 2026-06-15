@@ -318,7 +318,7 @@ PhoBERT & Dense, contextual & Transformer, tiếng Việt, SOTA & Lec06 \\
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.85\textwidth]{figures/embedding_comparison.png}
-  \caption{So sánh hiệu quả Retrieval giữa 4 phương pháp Embedding (Precision@k \& MRR)}
+  \caption{So sánh Retrieval (MRR $\pm$ 95\% CI bootstrap): baseline Keyword + 4 phương pháp học, trên 100 truy vấn giàu từ khoá (trái) vs 16 truy vấn lexical-gap (phải). CI đã siết còn $\pm$0.05 nhưng vẫn chồng lấn ở truy vấn dễ; chỉ ở lexical-gap PhoBERT mới tách rõ.}
   \label{fig:embedding_comparison}
 \end{figure}
 
@@ -363,13 +363,36 @@ NER tổng quát của \texttt{underthesea} (nhãn PER/LOC/ORG) trên dữ liệ
 
 Đồ thị có hướng (NetworkX) gồm 3 loại node: \texttt{brand}, \texttt{aspect} (10 aspect gồm SER\&ACC) và \texttt{aspect\#sentiment}. Cạnh \texttt{brand}$\to$\texttt{aspect} và \texttt{aspect}$\to$\texttt{sentiment} mang trọng số là số review. Quan trọng hơn, cạnh \texttt{brand}$\to$\texttt{aspect\#sentiment} (trọng số = số review của riêng hãng) cho phép truy vấn phân bố cảm xúc \textbf{theo từng hãng cụ thể}: vd.\ hỏi ``pin Samsung'' trả về thống kê của riêng Samsung (n=126) thay vì gộp toàn corpus (n=3.604) --- nhờ đó câu trả lời đúng trọng tâm câu hỏi thay vì lấy số liệu chung chung.
 
+\subsection{Độ đủ của dữ liệu cho Knowledge Graph}
+\label{sec:kg-data}
+
+Một câu hỏi phản biện: \textit{dữ liệu có đủ dày để KG trả lời thống kê theo hãng không?} Ta phân tích trực tiếp KG (\texttt{scripts/analyze\_kg.py}): 102 node (12 brand, 10 aspect, 30 aspect\#sentiment, 24 shop, 26 product), 614 cạnh.
+
+\begin{table}[H]
+\centering
+\caption{Độ phủ dữ liệu KG. ``$\geq$30'' = đủ review để một thống kê cảm xúc theo hãng đáng tin.}
+\begin{tabular}{lr}
+\toprule
+\textbf{Chỉ số độ đủ} & \textbf{Giá trị} \\
+\midrule
+Hãng có $\geq$100 lượt nhắc & 9 / 12 (Samsung 1029, Xiaomi 599, OPPO 598, Apple 593\ldots) \\
+Hãng quá thưa ($<$30 ở mọi aspect) & Nokia, Huawei, Asus, Sony, OnePlus \\
+Ô (hãng $\times$ aspect) đủ $\geq$30 review & \textbf{47 / 120} (có $\geq$1 review: 105/120) \\
+Aspect dày nhất / mỏng nhất & GENERAL 4.866 \ldots \textbf{STORAGE chỉ 91} \\
+Sản phẩm Shopee có $\geq$20 review & 20 / 26 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Kết luận trung thực}: KG \textbf{đủ dày cho hãng phổ biến} (Samsung/Xiaomi/OPPO/Apple --- 7--9/10 aspect đạt $\geq$30) và các aspect thường (BATTERY 3.604, PERFORMANCE 4.140\ldots). Nhưng \textbf{thưa ở hai chỗ}: (i) \textit{hãng nhỏ} (Nokia/Huawei/Asus/Sony/OnePlus dưới ngưỡng ở mọi aspect $\Rightarrow$ truy vấn theo hãng buộc fallback về thống kê toàn corpus); (ii) \textit{aspect STORAGE} chỉ 91 lượt toàn corpus --- và đúng là aspect mà BiLSTM cũng thất bại (F1=0, Mục~\ref{sec:rnn}). Chỉ \textbf{47/120 ô hãng$\times$aspect} đủ tin cậy. Đây là giới hạn dữ liệu cần khắc phục khi mở rộng (Hướng phát triển): thu thêm review hãng nhỏ và đặc biệt nhãn STORAGE.
+
 \subsection{Module 5: Retrieval với Attention Re-ranking}
 
 Pipeline truy xuất 2 tầng: (1) \textbf{bi-encoder} PhoBERT (mean-pooling) tính cosine để lấy Top-50 candidate; (2) \textbf{tái xếp hạng late-interaction (MaxSim, kiểu ColBERT~\cite{khattab2020colbert})} --- với mỗi token của truy vấn, lấy cosine lớn nhất so với các token của tài liệu rồi tính trung bình. Đây là cơ chế \textbf{attention} (tích vô hướng có chuẩn hoá giữa token query và token doc), \textbf{không tham số ngẫu nhiên và không cần huấn luyện}. Điểm cuối kết hợp: bi-encoder, MaxSim, và một \textbf{graph boost} dựa trên aspect quan sát được trong nội dung review.
 
 \subsection{Module 6: Generation (OpenAI)}
 
-Ghép Top-$k$ review truy xuất và thống kê từ Knowledge Graph thành một prompt có \textbf{grounding} (chỉ trả lời dựa trên dữ liệu cung cấp), rồi gọi LLM qua \textbf{API tương thích OpenAI} (mặc định \texttt{gpt-4o-mini}; bản triển khai thực dùng proxy OpenAI-compatible với model \texttt{gpt-5.4-mini}, temperature 0.3) sinh câu trả lời tiếng Việt. Khi thiếu API key, hệ thống \textbf{fallback} trả về các review truy xuất thay vì lỗi. Mỗi lần gọi được ghi log latency + token + chi phí USD (Mục~\ref{sec:llmops}).
+Ghép Top-$k$ review truy xuất và thống kê từ Knowledge Graph thành một prompt có \textbf{grounding} (chỉ trả lời dựa trên dữ liệu cung cấp), rồi gọi LLM qua \textbf{OpenAI API} (model \texttt{gpt-4o-mini}, temperature 0.3) sinh câu trả lời tiếng Việt. Khi thiếu API key, hệ thống \textbf{fallback} trả về các review truy xuất thay vì lỗi. Mỗi lần gọi được ghi log latency + token + chi phí USD (Mục~\ref{sec:llmops}).
 
 % ===================================================================
 \section{Thực nghiệm}
@@ -397,25 +420,26 @@ Các thư viện khác & underthesea, gensim, networkx, openai, gradio \\
 \subsection{Thí nghiệm 1: So sánh Embedding Methods}
 \label{sec:exp1}
 
-\textbf{Thiết lập}: 8 truy vấn (mỗi truy vấn nhắm 1 aspect, dùng \textbf{cùng bộ truy vấn với Thí nghiệm~3}). Pool xếp hạng là \textbf{toàn corpus 10.923 review} (7.786 UIT-ViSFD có nhãn vàng + 3.137 review Shopee đóng vai nhiễu, không liên quan). Một review được coi là \textit{liên quan} nếu nhãn vàng của nó chứa aspect đó. Báo cáo Precision@5, Precision@10, MRR (trung bình trên các truy vấn). Cùng một phán quyết liên quan áp dụng cho cả 4 phương pháp $\Rightarrow$ công bằng. Word2Vec huấn luyện bằng skip-gram + negative sampling (PyTorch); GloVe-SVD lấy từ SVD của ma trận PPMI đồng xuất hiện; PhoBERT dùng vector mean-pool; cả ba biểu diễn tài liệu/truy vấn bằng trung bình vector từ.
+\textbf{Thiết lập}: \textbf{100 truy vấn phủ đủ 10 aspect} (10 câu/aspect; mở rộng từ 8$\to$25$\to$100 để \textbf{siết khoảng tin cậy}, dùng \textbf{cùng bộ truy vấn với Thí nghiệm~3}). Pool xếp hạng là \textbf{toàn corpus 10.923 review} (7.786 UIT-ViSFD có nhãn vàng + 3.137 review Shopee đóng vai nhiễu, không liên quan). Một review được coi là \textit{liên quan} nếu nhãn vàng của nó chứa aspect đó. Báo cáo Precision@5, Precision@10, MRR, kèm \textbf{khoảng tin cậy 95\% bootstrap} (2.000 lần resample truy vấn) để biết chênh lệch có vượt nhiễu không. Cùng một phán quyết liên quan áp dụng cho mọi phương pháp $\Rightarrow$ công bằng. Ta bổ sung \textbf{baseline ``Keyword''} --- xếp hạng theo \textit{số từ trùng lặp thô} giữa truy vấn và review (mô phỏng ô tìm kiếm từ khoá của sàn TMĐT, \textbf{không} ngữ nghĩa, \textbf{không} IDF) --- để đối chiếu trực tiếp ``không dùng học biểu diễn'' với ``dùng''. Word2Vec huấn luyện skip-gram + negative sampling (PyTorch); GloVe-SVD lấy từ SVD ma trận PPMI đồng xuất hiện; PhoBERT dùng vector mean-pool.
 
 \begin{table}[H]
 \centering
-\caption{Precision@k \& MRR theo phương pháp embedding (pool 10.923 review, 8 truy vấn). Baseline ngẫu nhiên là \textit{sàn tham chiếu} (trung bình 200 lần xếp hạng ngẫu nhiên).}
-\begin{tabular}{lrrrl}
+\caption{Precision@k \& MRR theo phương pháp (pool 10.923 review, \textbf{100 truy vấn giàu từ khoá}). Cột cuối: khoảng tin cậy 95\% bootstrap của MRR. Baseline ngẫu nhiên là \textit{sàn tham chiếu}.}
+\begin{tabular}{lrrrc}
 \toprule
-\textbf{Phương pháp} & \textbf{P@5} & \textbf{P@10} & \textbf{MRR} & \textbf{Nhận xét} \\
+\textbf{Phương pháp} & \textbf{P@5} & \textbf{P@10} & \textbf{MRR} & \textbf{MRR 95\% CI} \\
 \midrule
-\textit{Ngẫu nhiên (sàn)} & 0.219 & 0.220 & 0.416 & mức ``đoán mò'' \\
-TF-IDF     & 0.800 & 0.763 & 0.807 & baseline từ vựng, thấp nhất nhóm học \\
-Word2Vec   & \textbf{0.825} & \textbf{0.838} & \textbf{0.877} & embedding tĩnh, tốt nhất \\
-GloVe-SVD  & \textbf{0.825} & \textbf{0.838} & \textbf{0.877} & ngang Word2Vec \\
-PhoBERT    & 0.800 & 0.775 & 0.833 & ngữ cảnh, mạnh nhất trong pipeline đầy đủ \\
+\textit{Ngẫu nhiên (sàn)} & 0.219 & 0.220 & 0.416 & --- \\
+\textit{Keyword (đối chiếu)} & \textbf{0.798} & \textbf{0.768} & \textbf{0.866} & [0.810, 0.916] \\
+TF-IDF     & 0.722 & 0.704 & 0.817 & [0.758, 0.878] \\
+Word2Vec   & 0.748 & 0.743 & 0.819 & [0.757, 0.880] \\
+GloVe-SVD  & 0.766 & 0.766 & 0.826 & [0.759, 0.886] \\
+PhoBERT    & 0.678 & 0.667 & 0.821 & [0.763, 0.880] \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\noindent Mọi phương pháp học đều \textbf{vượt xa sàn ngẫu nhiên} (MRR 0.416), khẳng định tín hiệu truy xuất là thực. Tuy nhiên khoảng cách giữa chúng \textit{khá hẹp} --- và đây chính là dấu hiệu bộ truy vấn này \textbf{giàu từ khoá aspect} nên chưa kiểm tra được \textit{lexical gap} (nỗi đau số 1, Mục~\ref{sec:problem}). Thí nghiệm~1b dưới đây làm rõ điều đó.
+\noindent Mọi phương pháp đều \textbf{vượt xa sàn ngẫu nhiên} (MRR 0.416), khẳng định tín hiệu truy xuất là thực. Với \textbf{100 truy vấn}, các khoảng tin cậy đã \textbf{siết lại còn $\pm$0.05} (so với $\pm$0.15 ở 25 câu) --- nhưng chúng \textbf{vẫn chồng lấn nhau gần như hoàn toàn} (mọi MRR nằm trong 0.76--0.89). Kết luận trung thực: trên truy vấn \textit{giàu từ khoá}, \textbf{không phương pháp học nào tách biệt có ý nghĩa thống kê}, và baseline \textbf{Keyword thuần thậm chí có MRR/P@k cao nhất} --- vì khi câu hỏi chứa thẳng từ khoá aspect thì \textit{trùng lặp từ vựng đã đủ}, không cần ngữ nghĩa; PhoBERT mean-pool (\textit{không} fine-tune) còn kém ở P@5 (0.678). Tức ``dùng học biểu diễn'' \textbf{chưa} thắng ``dùng từ khoá'' \textit{khi truy vấn dễ}. Câu chuyện đổi chiều hoàn toàn ở Thí nghiệm~1b --- đúng nỗi đau \textit{lexical gap} của bài toán.
 
 \subsection{Thí nghiệm 1b: Truy vấn có \textit{lexical gap} thật}
 \label{sec:exp1b}
@@ -424,20 +448,23 @@ PhoBERT    & 0.800 & 0.775 & 0.833 & ngữ cảnh, mạnh nhất trong pipeline 
 
 \begin{table}[H]
 \centering
-\caption{Truy vấn \textit{giàu từ khoá} (TN1) vs \textit{lexical gap} (TN1b) --- pool 10.923 review. Cột $\Delta$MRR = mức sụt khi mất từ khoá trùng lặp.}
-\begin{tabular}{lrrrr}
+\caption{Retrieval trên 16 truy vấn \textit{lexical gap} (pool 10.923 review). Cột cuối: khoảng tin cậy 95\% bootstrap của MRR.}
+\begin{tabular}{lrrrc}
 \toprule
-\textbf{Phương pháp} & \textbf{P@5} & \textbf{P@10} & \textbf{MRR (lexgap)} & \textbf{$\Delta$MRR vs TN1} \\
+\textbf{Phương pháp} & \textbf{P@5} & \textbf{P@10} & \textbf{MRR} & \textbf{MRR 95\% CI} \\
 \midrule
-TF-IDF     & 0.500 & 0.438 & 0.572 & $-0.235$ \\
-Word2Vec   & 0.513 & 0.481 & 0.656 & $-0.221$ \\
-GloVe-SVD  & 0.525 & 0.513 & 0.629 & $-0.248$ \\
-PhoBERT    & \textbf{0.638} & \textbf{0.619} & \textbf{0.776} & \textbf{$-0.057$} \\
+\textit{Keyword (đối chiếu)} & 0.537 & 0.562 & 0.736 & [0.561, 0.906] \\
+TF-IDF     & 0.500 & 0.438 & 0.572 & [0.394, 0.753] \\
+Word2Vec   & 0.512 & 0.481 & 0.656 & [0.453, 0.859] \\
+GloVe-SVD  & 0.525 & 0.512 & 0.629 & [0.433, 0.803] \\
+PhoBERT    & \textbf{0.637} & \textbf{0.619} & \textbf{0.776} & [0.595, 0.938] \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\noindent\textbf{Kết quả quyết định}: khi không còn từ khoá trùng, TF-IDF thuần từ vựng \textbf{sụp đổ} (MRR $0.807\to0.572$) và các embedding tĩnh (Word2Vec/GloVe-SVD) cũng mất $\sim$0.22 MRR; trong khi \textbf{PhoBERT chỉ giảm 0.057 và vươn lên dẫn đầu rõ rệt} (MRR 0.776, hơn embedding tĩnh tốt nhất $+0.12$). Đây mới là bằng chứng cho ưu thế \textit{ngữ cảnh} của PhoBERT --- thứ mà bộ truy vấn giàu từ khoá ở Thí nghiệm~1 che lấp. Nói cách khác: trên đúng nỗi đau \textit{lexical gap} của bài toán, biểu diễn theo \textbf{ngữ nghĩa} thắng biểu diễn theo \textbf{từ vựng}; đồng thời Word2Vec (0.656) và GloVe-SVD (0.629) tách khỏi nhau, xác nhận khác biệt bị che ở bộ 8 truy vấn là do thiếu lực phân giải.
+\noindent\textbf{Kết quả quyết định --- nhìn ở \textit{độ chính xác top-k}}: khi không còn từ khoá trùng, \textbf{P@5/P@10} của TF-IDF thuần từ vựng \textbf{sụp đổ} (0.500/0.438), Keyword cũng chỉ còn 0.538/0.563; trong khi \textbf{PhoBERT vượt rõ mọi phương pháp} (0.638/0.619). Đây là bằng chứng cho ưu thế \textit{ngữ nghĩa}: trên đúng nỗi đau \textit{lexical gap}, biểu diễn theo nghĩa thắng biểu diễn theo từ vựng.
+
+\noindent\textbf{Một cảnh báo trung thực về MRR}: baseline Keyword đạt \textbf{MRR 0.736} (cao thứ 2) dù P@5 chỉ 0.538. Lý do: MRR chỉ thưởng \textit{một} review đúng nằm gần đầu, mà trên pool 10.923 với aspect phổ biến, chỉ cần trùng vài từ phụ (``cả ngày'', ``ổ điện'') là một review liên quan lọt top. Vì vậy \textbf{MRR đơn lẻ phóng đại} các baseline yếu --- phải đọc \textbf{cùng P@k}. Cảnh báo này chính là một phần câu trả lời cho ``metrics có đúng không'' (Mục~\ref{sec:metric-crit}). Lưu ý thêm: mọi CI vẫn còn rộng (16 truy vấn) nên các kết luận cần được xác nhận lại trên bộ lớn hơn.
 
 \subsection{Thí nghiệm 2: Trích xuất thực thể (NER)}
 
@@ -469,31 +496,56 @@ Review nhận diện được \textbf{brand} (gazetteer) & 72 / 800 \\
 Hiện thực \textbf{Lec05 (Recurrent Neural Networks)}: một \textbf{BiLSTM} (embedding 100, hidden 128, hai chiều) phân loại \textbf{đa nhãn} 10 aspect từ review, huấn luyện trên tập train UIT-ViSFD và đánh giá \textbf{micro-F1} trên tập dev. Mô hình sau khi train được \textbf{lưu lại} (\texttt{artifacts/aspect\_clf.pt}) và \textbf{triển khai} trong hệ thống (xem Mục~\ref{sec:llmops}): dùng để gán aspect cho review Shopee (không có nhãn) nhằm làm giàu Knowledge Graph, và phục vụ trực tiếp qua API \texttt{POST /classify}.
 
 \begin{center}
-\textit{Micro-F1 (dev): \textbf{0.79}} (huấn luyện 8 epoch trên 7.786 review train, đánh giá trên 1.112 review dev; lưu \texttt{artifacts/aspect\_clf.pt}).
+\textit{Micro-F1 (dev): \textbf{0.79}} · \textit{Macro-F1 (dev): \textbf{0.68}} (8 epoch trên 7.786 review train, đánh giá trên 1.112 review dev; lưu \texttt{artifacts/aspect\_clf.pt}).
 \end{center}
 
-\subsection{Thí nghiệm 3: Ablation chiến lược Retrieval (không rò rỉ metric)}
-
-\textbf{Thiết lập}: trên cùng tập Top-50 candidate, thay đổi trọng số 3 thành phần. \textbf{Quan trọng}: graph boost dựa trên aspect \textit{quan sát trong nội dung review} (tín hiệu khả dụng lúc suy luận), còn phán quyết liên quan dùng \textit{nhãn vàng} --- hai nguồn độc lập nên không có rò rỉ.
+\noindent\textbf{Vì sao báo cáo CẢ macro-F1?} Đây là một phần trả lời cho ``metrics có đúng không'' (Mục~\ref{sec:metric-crit}): \textbf{micro-F1 (0.79) gộp mọi nhãn nên bị thống trị bởi các aspect phổ biến} và \textit{che giấu} aspect hiếm. Macro-F1 (0.68) --- trung bình F1 đều theo aspect --- phơi bày sự chênh lệch:
 
 \begin{table}[H]
 \centering
-\caption{Ablation: đóng góp tăng dần của Attention (MaxSim) và Graph boost (8 truy vấn, Top-50 candidate). $\Delta$ = thay đổi MRR so với dòng trên.}
-\begin{tabular}{lrrrl}
+\caption{F1 từng aspect của BiLSTM trên tập dev (sắp theo F1). Micro-F1 0.79 che giấu việc STORAGE \textbf{hoàn toàn thất bại}.}
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{lrr|lrr}
 \toprule
-\textbf{Cấu hình} & \textbf{P@5} & \textbf{P@10} & \textbf{MRR} & \textbf{$\Delta$ MRR} \\
+\textbf{Aspect} & \textbf{F1} & \textbf{Recall} & \textbf{Aspect} & \textbf{F1} & \textbf{Recall} \\
 \midrule
-\textit{Ngẫu nhiên (sàn)} & 0.219 & 0.220 & 0.416 & --- \\
-Bi-encoder (PhoBERT) & 0.800 & 0.775 & 0.833 & +0.417 vs sàn \\
-\quad + Attention rerank (MaxSim) & 0.825 & 0.850 & 0.833 & +0.075 P@10 \\
-\quad + Graph boost (\textbf{Graph RAG}) & \textbf{0.825} & \textbf{0.850} & \textbf{0.854} & \textbf{+0.021} \\
+BATTERY     & 0.90 & 0.86 & PRICE       & 0.79 & 0.81 \\
+CAMERA      & 0.83 & 0.82 & FEATURES    & 0.76 & 0.78 \\
+GENERAL     & 0.81 & 0.86 & SER\&ACC    & 0.74 & 0.69 \\
+PERFORMANCE & 0.79 & 0.78 & DESIGN      & 0.64 & 0.53 \\
+            &      &      & SCREEN      & 0.51 & 0.40 \\
+            &      &      & \textbf{STORAGE} & \textbf{0.00} & \textbf{0.00} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
+\noindent\textbf{Phát hiện trung thực}: \textbf{STORAGE có F1 = 0} --- mô hình \textit{không bao giờ} dự đoán đúng aspect này (lớp hiếm nhất, bị nuốt bởi mất cân bằng nhãn), và SCREEN recall chỉ 0.40. Một báo cáo chỉ nêu micro-F1 0.79 sẽ \textbf{giấu mất thất bại này}. Đây là lý do dùng macro-F1 và bảng per-aspect; hướng khắc phục (class weighting / fine-tune PhoBERT) ở Mục~Hạn chế.
+
+\subsection{Thí nghiệm 3: Ablation chiến lược Retrieval (không rò rỉ metric)}
+
+\textbf{Thiết lập}: \textbf{100 truy vấn}, trên cùng tập Top-50 candidate, thêm dần \textbf{4 thành phần} (bi-encoder $\to$ +MaxSim $\to$ +graph boost $\to$ +BM25). \textbf{Quan trọng}: graph boost dựa trên aspect \textit{quan sát trong nội dung review} (tín hiệu khả dụng lúc suy luận), còn phán quyết liên quan dùng \textit{nhãn vàng} --- hai nguồn độc lập nên không có rò rỉ. Thêm \textbf{NDCG@5} (chỉ số IR chuẩn thưởng cả thứ hạng).
+
+\begin{table}[H]
+\centering
+\caption{Ablation: đóng góp tăng dần của từng thành phần (100 truy vấn, Top-50 candidate). $\Delta$ = thay đổi MRR so với dòng trên.}
+\begin{tabular}{lrrrrl}
+\toprule
+\textbf{Cấu hình} & \textbf{P@5} & \textbf{P@10} & \textbf{MRR} & \textbf{NDCG@5} & \textbf{$\Delta$ MRR} \\
+\midrule
+\textit{Ngẫu nhiên (sàn)} & 0.219 & 0.220 & 0.416 & --- & --- \\
+Bi-encoder (PhoBERT)            & 0.678 & 0.667 & 0.821 & 0.688 & +0.405 vs sàn \\
+\quad + Attention (MaxSim)      & 0.704 & 0.698 & 0.812 & 0.704 & $-0.010$ \\
+\quad + Graph boost (\textbf{Graph RAG}) & 0.742 & 0.750 & \textbf{0.845} & 0.744 & \textbf{+0.033} \\
+\quad + BM25 (full hybrid)      & \textbf{0.748} & \textbf{0.763} & 0.838 & \textbf{0.748} & $-0.007$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Nhận xét}: \textbf{graph boost là đóng góp lớn nhất và \textit{robust}} --- nâng MRR từ 0.812 lên \textbf{0.845} (\textbf{+0.033}) và cải thiện \textbf{mọi} chỉ số (P@5 0.704$\to$0.742, NDCG@5 0.704$\to$0.744). Đây là tín hiệu chắc chắn hơn nhiều so với +0.013 ở bộ 25 câu, khẳng định giá trị thật của thành phần ``Graph'' trong Graph RAG. MaxSim đánh đổi một chút MRR ($-0.010$) lấy độ chính xác top-k cao hơn (P@5/NDCG tăng). Thêm BM25 cho \textbf{P@10/NDCG@5 cao nhất} (0.763/0.748) nhưng hơi giảm MRR: không có cấu hình ``thắng mọi chỉ số'' --- tuỳ ưu tiên 1-hit (MRR) hay phủ top-k (P@10/NDCG).
+
 \subsection{Thí nghiệm 4: Demo End-to-End}
 
-Ba câu hỏi mẫu chạy qua pipeline đầy đủ Retrieve $\to$ Graph context $\to$ sinh câu trả lời (model \texttt{gpt-5.4-mini} qua proxy OpenAI-compatible). Mỗi câu trả lời được \textbf{grounding} vào Top-5 review truy xuất và thống kê cảm xúc từ Knowledge Graph; toàn bộ latency/token/chi phí được ghi log (Mục~\ref{sec:llmops}).
+Ba câu hỏi mẫu chạy qua pipeline đầy đủ Retrieve $\to$ Graph context $\to$ sinh câu trả lời (model \texttt{gpt-4o-mini} qua OpenAI API). Mỗi câu trả lời được \textbf{grounding} vào Top-5 review truy xuất và thống kê cảm xúc từ Knowledge Graph; toàn bộ latency/token/chi phí được ghi log (Mục~\ref{sec:llmops}).
 
 \begin{table}[H]
 \centering
@@ -527,17 +579,63 @@ SER\&ACC: 70\% tích cực / 24\% tiêu cực (n=1.995) &
   \label{fig:demo}
 \end{figure}
 
+\subsection{Thí nghiệm 5: ``KHÔNG dùng'' vs ``DÙNG'' ở mức câu trả lời}
+\label{sec:exp5}
+
+Các thí nghiệm trên đo \textit{retrieval}. Nhưng sản phẩm cuối là \textbf{câu trả lời}, và P@k/MRR \textbf{không} đo được câu trả lời có đúng/có bịa hay không. Thí nghiệm này trả lời thẳng câu hỏi cốt lõi của một bài RAG: \textit{dùng hệ thống có hơn không dùng không, và hơn bao nhiêu?} Ta trả lời \textbf{cùng bộ câu hỏi bằng 3 chế độ}:
+
+\begin{itemize}[leftmargin=1.5cm,itemsep=1pt]
+  \item \textbf{No-RAG} (closed-book): LLM trả lời \textit{tay không} --- không review, không Knowledge Graph. Đại diện ``\textbf{không dùng} hệ thống''.
+  \item \textbf{Vanilla-RAG}: chỉ PhoBERT bi-encoder Top-5, \textbf{không} graph, \textbf{không} BM25/MaxSim.
+  \item \textbf{Graph-RAG} (đầy đủ): hybrid retrieve + thống kê Knowledge Graph --- hệ thống của dự án.
+\end{itemize}
+
+\textbf{Thiết lập}: 30 câu hỏi \textit{grounded} (corpus trả lời được) + 8 câu \textit{ngoài phạm vi}. Chấm bằng \textbf{LLM-judge} (gpt-4o-mini, nhiệt độ 0): \textbf{faithfulness} (0--100, tỉ lệ nội dung được bằng chứng review+KG chứng minh) và \textbf{relevance} (1--5). Bằng chứng tham chiếu \textit{giống nhau} cho cả 3 chế độ (= bằng chứng Graph-RAG) nên No-RAG bị chấm thấp khi nói chung chung/bịa --- chính là đo ``giảm bịa đặt''. Bổ sung \textbf{numeric-grounding} (tự động, không qua LLM): \% con số trong câu trả lời có trong bằng chứng (\texttt{scripts/eval\_rag\_modes.py}).
+
+\begin{table}[H]
+\centering
+\caption{No-RAG vs Vanilla-RAG vs Graph-RAG trên 30 câu grounded + 8 câu ngoài phạm vi. Faithfulness/relevance: LLM-judge; numeric-grounding \& từ chối: tự động.}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Chế độ} & \textbf{Faithfulness} & \textbf{Relevance} & \textbf{Numeric} & \textbf{Từ chối} \\
+ & \textbf{(0--100)} & \textbf{(1--5)} & \textbf{grounding} & \textbf{(ngoài p.vi)} \\
+\midrule
+No-RAG (không dùng)   & 47.3 & 3.47 & --- (0 số) & 0.0\% \\
+Vanilla-RAG (dense)   & 74.5 & 4.27 & 100\% (3 số) & --- \\
+Graph-RAG (đầy đủ)    & \textbf{82.2} & \textbf{4.53} & \textbf{100\% (9 số)} & \textbf{12.5\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+  \centering
+  \IfFileExists{figures/rag_modes.png}{\includegraphics[width=0.8\textwidth]{figures/rag_modes.png}}{}
+  \caption{Faithfulness tăng đơn điệu khi thêm retrieval rồi graph: 47.3 $\to$ 74.5 $\to$ 82.2.}
+  \label{fig:rag_modes}
+\end{figure}
+
+\noindent\textbf{Kết quả --- bằng chứng định lượng cho giá trị của hệ thống}:
+\begin{itemize}[leftmargin=1.5cm,itemsep=1pt]
+  \item \textbf{Faithfulness tăng đơn điệu 47.3 $\to$ 74.5 $\to$ 82.2}: mỗi lần thêm thành phần (retrieval, rồi graph) câu trả lời bám bằng chứng hơn. Đây là con số trực tiếp cho claim ``RAG giảm bịa đặt'' --- thứ mà trước đây report chỉ minh hoạ \textit{định tính} bằng 3 demo.
+  \item \textbf{No-RAG trả lời chung chung/bịa}: vd.\ hỏi camera chụp đêm, No-RAG đáp ``thường tốt nhờ Night Mode, cảm biến lớn\ldots'' (faithfulness 40) --- đúng kiểu LLM bịa từ tham số. Graph-RAG đáp ``57\% đánh giá tích cực, 29\% tiêu cực\ldots'' bám thẳng thống kê KG (faithfulness 85, 9 con số đều grounded).
+  \item \textbf{Từ chối câu ngoài phạm vi}: No-RAG \textbf{0\%} (luôn tự tin bịa thông số IP68/Hz/GHz), Graph-RAG 12.5\%. Graph-RAG đỡ bịa hơn nhưng \textbf{tỉ lệ từ chối vẫn thấp} --- một hạn chế thật (Mục Hạn chế).
+\end{itemize}
+
+\noindent\textbf{Giới hạn (khai báo trung thực)}: LLM-judge cùng họ với generator (gpt-4o-mini) nên có thể \textit{tự thiên vị}; ta giảm thiểu bằng cách chấm từng câu độc lập, bám chặt bằng chứng, và đối chiếu với numeric-grounding tự động (cho cùng xu hướng). Cần kiểm chứng thêm bằng người chấm hoặc judge khác họ.
+
 % ===================================================================
 \section{Kết quả và Thảo luận}
 % ===================================================================
 
 \begin{tcolorbox}[colback=blue!4,colframe=blue!55!black,title=\textbf{Kết quả nổi bật},fonttitle=\bfseries]
 \begin{itemize}[leftmargin=1.4em,itemsep=2pt]
-  \item \textbf{Graph RAG đạt MRR cao nhất 0.854} (so với 0.833 của bi-encoder/MaxSim) --- graph boost cải thiện truy xuất \textbf{có kiểm chứng}, không rò rỉ metric.
-  \item \textbf{BiLSTM phân loại aspect micro-F1 = 0.79} trên tập dev; được \textbf{deploy thật} vào KG \& API \texttt{/classify}.
-  \item \textbf{So sánh 4 embedding} bằng độ đo truy xuất đúng (P@k/MRR) trên 10.923 review --- không dùng ``trung bình cosine'' vô nghĩa.
-  \item \textbf{PhoBERT thắng rõ khi có \textit{lexical gap}} (MRR 0.776 vs TF-IDF 0.572): trên truy vấn không trùng từ khoá, biểu diễn ngữ cảnh vượt hẳn từ vựng --- đúng nỗi đau của bài toán (TN1b).
-  \item \textbf{Hệ thống chạy được đầu--cuối}: index 10.923 doc + KG 102 node/614 cạnh (truy vấn cảm xúc \textbf{theo từng hãng}), FastAPI 4 endpoint, Gradio UI, observability chi phí, regression gate.
+  \item \textbf{KHÔNG dùng vs DÙNG (mức câu trả lời, TN5)}: faithfulness \textbf{47.3 (No-RAG) $\to$ 74.5 (Vanilla-RAG) $\to$ 82.2 (Graph-RAG)} --- lần đầu \textbf{định lượng} được claim ``RAG giảm bịa đặt'', thay cho 3 demo chấm mắt.
+  \item \textbf{Graph RAG đạt MRR cao nhất 0.845} (100 truy vấn, so với 0.812 của +MaxSim) --- graph boost \textbf{+0.033} (robust, cải thiện mọi chỉ số), không rò rỉ metric; BM25 cho P@10/NDCG@5 cao nhất (0.763/0.748).
+  \item \textbf{PhoBERT thắng rõ khi có \textit{lexical gap}} (P@5 0.638 vs TF-IDF 0.500; MRR 0.776): biểu diễn ngữ cảnh vượt từ vựng --- đúng nỗi đau bài toán (TN1b).
+  \item \textbf{So sánh 5 phương pháp + baseline Keyword} (mô phỏng search sàn TMĐT) trên \textbf{100 truy vấn} kèm \textbf{khoảng tin cậy bootstrap}: trên truy vấn dễ các CI \textit{chồng lấn} (không method nào significant, Keyword còn nhỉnh nhất), khác biệt thật chỉ hiện ở lexical-gap (TN1b).
+  \item \textbf{BiLSTM aspect micro-F1 0.79 / macro-F1 0.68} (báo cáo trung thực: STORAGE F1=0); deploy thật vào KG \& API \texttt{/classify}.
+  \item \textbf{Đánh giá trung thực}: tách dev/test, đo được mức \textbf{overfit do tuning trọng số $\approx$0.013 MRR} (100 câu); index 10.923 doc + KG, FastAPI 4 endpoint, \textbf{2 giao diện Gradio} (demo + dashboard thí nghiệm), observability chi phí, regression gate.
 \end{itemize}
 \end{tcolorbox}
 
@@ -549,23 +647,24 @@ SER\&ACC: 70\% tích cực / 24\% tiêu cực (n=1.995) &
 \toprule
 \textbf{Hạng mục} & \textbf{Kết quả} & \textbf{Ghi chú} \\
 \midrule
-Embedding tốt nhất (TN1) & MRR \textbf{0.877} & Word2Vec / GloVe-SVD \\
-PhoBERT (TN1) & MRR 0.833 & cạnh tranh, chưa fine-tune \\
-TF-IDF baseline (TN1) & MRR 0.807 & thấp nhất (như kỳ vọng) \\
-Embedding khi có \textit{lexical gap} (TN1b) & PhoBERT \textbf{MRR 0.776} & TF-IDF sụp còn 0.572 \\
-Retrieval Graph RAG (TN3) & \textbf{MRR 0.854} · P@10 0.850 & cao nhất trong ablation \\
-BiLSTM aspect (TN2b) & \textbf{micro-F1 0.79} & 8 epoch, deploy vào KG/API \\
+\textbf{Faithfulness câu trả lời (TN5)} & \textbf{47.3 $\to$ 82.2} & No-RAG $\to$ Vanilla $\to$ Graph-RAG \\
+Embedding (TN1, 100 câu) & MRR 0.82--0.87 & CI chồng lấn, không method nào significant \\
+Keyword baseline (TN1) & MRR \textbf{0.866} & cao nhất khi truy vấn giàu từ khoá \\
+Embedding khi có \textit{lexical gap} (TN1b) & PhoBERT \textbf{P@5 0.637} & TF-IDF P@5 sụp còn 0.500 \\
+Retrieval Graph RAG (TN3) & \textbf{MRR 0.845} · NDCG@5 0.744 & cao nhất MRR trong ablation \\
+Full hybrid +BM25 (TN3) & P@10 0.763 · NDCG 0.748 & cao nhất P@10/NDCG \\
+BiLSTM aspect (TN2b) & micro-F1 \textbf{0.79} / macro \textbf{0.68} & STORAGE F1=0 (báo cáo trung thực) \\
+Overfit do tuning (dev/test) & $\approx$0.013 MRR & 100q; giảm từ 0.05 ở bộ 25 câu \\
 NER (TN2) & 387/800 có thực thể & brand: 72/800 (gazetteer) \\
-Demo end-to-end (TN4) & 3/3 trả lời grounded & latency 4--7 s/câu \\
 \midrule
-Regression gate & \textbf{PASS} & MRR 0.854 $\geq$ 0.30; F1 0.79 $\geq$ 0.40 \\
+Regression gate & \textbf{PASS} & MRR 0.845 $\geq$ 0.55; F1 0.79 $\geq$ 0.70 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{Embedding}: trên truy vấn \textit{giàu từ khoá aspect} (Thí nghiệm~1), TF-IDF là baseline thấp nhất (MRR 0.807); Word2Vec và GloVe-SVD dẫn đầu (MRR 0.877); PhoBERT cạnh tranh nhưng \textbf{không cao nhất} (MRR 0.833). Kết quả này hợp lý: khi câu hỏi chứa thẳng từ khoá khía cạnh, các biểu diễn dựa trên trùng lặp từ vựng/đồng xuất hiện đã đủ mạnh, còn PhoBERT mean-pool (\textit{không} fine-tune cho truy xuất) chưa phát huy hết ưu thế ngữ cảnh. Ưu thế của PhoBERT thể hiện rõ hơn khi đặt trong \textbf{pipeline Graph RAG đầy đủ} (Thí nghiệm~3) nhờ tái xếp hạng late-interaction (MaxSim) ở mức token và graph boost. \textbf{Quan trọng hơn}, Thí nghiệm~1b cho thấy khi truy vấn \textit{không trùng từ khoá} (lexical gap thật), PhoBERT \textbf{vươn lên dẫn đầu} (MRR 0.776) còn TF-IDF sụp xuống 0.572 --- khẳng định giá trị ngữ nghĩa mà bộ truy vấn giàu từ khoá ở Thí nghiệm~1 đã che lấp. Đây là kết quả phản ánh đúng nỗi đau \textit{lexical gap} trong phát biểu bài toán (Mục~\ref{sec:problem}).
+\textbf{Embedding}: trên \textbf{100 truy vấn} \textit{giàu từ khoá} (Thí nghiệm~1), \textbf{không phương pháp học nào tách biệt có ý nghĩa thống kê} --- mọi MRR nằm trong 0.76--0.89 với CI chồng lấn, và baseline \textbf{Keyword thuần còn cao nhất} (MRR 0.866). Khi câu hỏi chứa thẳng từ khoá khía cạnh, trùng lặp từ vựng đã đủ, nên ``dùng học biểu diễn'' chưa thắng ``dùng từ khoá''. \textbf{Quan trọng hơn}, Thí nghiệm~1b (lexical gap thật) \textbf{đổi chiều câu chuyện} ở \textbf{độ chính xác top-k}: PhoBERT giữ P@5 0.637 trong khi TF-IDF sụp còn 0.500 --- biểu diễn \textbf{ngữ nghĩa} vượt \textbf{từ vựng}, đúng nỗi đau \textit{lexical gap} (Mục~\ref{sec:problem}). (Lưu ý: MRR đơn lẻ gây nhiễu, phải đọc cùng P@k --- Mục~\ref{sec:metric-crit}.)
 
-\textbf{Retrieval}: ablation (Thí nghiệm~3) cho thấy thêm graph boost nâng MRR từ 0.833 (bi-encoder/MaxSim) lên \textbf{0.854} (Graph RAG) --- cấu hình Graph RAG đạt MRR cao nhất. Vì đánh giá không còn rò rỉ metric (boost từ nội dung, chấm điểm bằng nhãn vàng độc lập), chênh lệch quan sát được phản ánh cải thiện thực --- không phải kết quả ``được sắp đặt''.
+\textbf{Retrieval}: ablation (Thí nghiệm~3, 100 truy vấn) cho thấy thêm graph boost nâng MRR từ 0.812 (+MaxSim) lên \textbf{0.845} (Graph RAG, cao nhất) và cải thiện mọi chỉ số ($+0.033$ MRR, robust); thêm BM25 cho P@10/NDCG@5 cao nhất (0.763/0.748) nhưng MRR hơi giảm. Vì đánh giá không rò rỉ metric (boost từ nội dung, chấm bằng nhãn vàng độc lập), chênh lệch phản ánh cải thiện thực. Lưu ý quan trọng về \textbf{phương pháp luận}: trọng số kết hợp cần tune trên \textit{tập riêng}; nếu tune trên chính tập báo cáo sẽ thổi phồng $\approx$0.05 MRR (Mục~\ref{sec:metric-crit}).
 
 \textbf{Hạn chế quan sát được}: graph boost chỉ kích hoạt khi câu hỏi khớp được aspect tiếng Việt; với câu hỏi mơ hồ (không nêu rõ khía cạnh), đóng góp của graph giảm.
 
@@ -574,13 +673,28 @@ Regression gate & \textbf{PASS} & MRR 0.854 $\geq$ 0.30; F1 0.79 $\geq$ 0.40 \\
 Quy chiếu các con số về \textbf{bài toán thực} (Mục~\ref{sec:problem}):
 
 \begin{itemize}[leftmargin=1.5cm,itemsep=1pt]
-  \item \textbf{Hữu dụng so với ``đoán mò''}: MRR nhảy từ 0.416 (ngẫu nhiên) lên 0.854 --- nghĩa là review đúng khía cạnh gần như luôn nằm ở \textbf{1--2 vị trí đầu}, người dùng không phải cuộn qua hàng trăm bình luận.
+  \item \textbf{Hữu dụng so với ``đoán mò''}: MRR nhảy từ 0.416 (ngẫu nhiên) lên 0.845 (Graph RAG) --- nghĩa là review đúng khía cạnh gần như luôn nằm ở \textbf{1--2 vị trí đầu}, người dùng không phải cuộn qua hàng trăm bình luận.
   \item \textbf{Graph boost giải đúng nỗi đau ``tổng hợp xu hướng''}: ngoài việc xếp hạng review, KG trả về thống kê (vd.\ \texttt{BATTERY} 56\% tích cực / 34\% tiêu cực trên 3.604 lượt nhắc) --- thứ mà tìm kiếm từ khoá của sàn TMĐT không làm được.
-  \item \textbf{Giảm bịa đặt (grounding)}: trong demo (Mục~5.6), câu trả lời bám sát phân bố KG --- vd.\ SER\&ACC 70\% tích cực $\to$ trả lời ``khá tốt'' nhưng vẫn nêu 24\% tiêu cực. Câu trả lời \textbf{không} đưa thông tin ngoài review truy xuất.
+  \item \textbf{Giảm bịa đặt (grounding) --- nay có SỐ}: faithfulness câu trả lời tăng từ 47.3 (No-RAG) lên \textbf{82.2} (Graph-RAG, Mục~\ref{sec:exp5}); harness numeric-grounding cho \textbf{100\% (6/6) con số} trong câu trả lời truy được về bằng chứng (không bịa số). Đây là dùng \textit{hệ thống} thay vì để LLM bịa từ tham số.
   \item \textbf{Chi phí \& tốc độ chấp nhận được}: $\approx$ 4--7 giây/câu (gồm gọi LLM), chi phí token ghi log theo từng truy vấn --- khả thi cho một trợ lý hỏi đáp thời gian thực.
 \end{itemize}
 
 \noindent\textbf{So với hệ thống thực tế}: đây là một \textit{prototype quy mô lớp học} (corpus 10.9k review, 1 domain smartphone), chưa phải sản phẩm thương mại. Để triển khai thật cần: chống review giả, cập nhật real-time khi có review mới, và mở rộng đa domain --- xem Hướng phát triển.
+
+\subsection{Bàn về tính đúng đắn của metrics \& dữ liệu đánh giá}
+\label{sec:metric-crit}
+
+Phần này trả lời trực tiếp hai câu hỏi phản biện: \textit{``metrics đánh giá có đúng không?''} và \textit{``nguồn dữ liệu có nhỏ quá không?''}.
+
+\textbf{(1) Vì sao dùng nhiều chỉ số (P@k, MRR, NDCG@5) thay vì một?} MRR chỉ thưởng vị trí của \textit{hit đầu tiên}, nên trên pool 10.923 review với aspect phổ biến, nó dễ bị \textbf{phóng đại}: ở TN1b, baseline Keyword đạt MRR 0.736 dù P@5 chỉ 0.538 --- chỉ cần một review đúng lọt top do trùng vài từ phụ. P@k đo độ chính xác top-k, NDCG@5 thưởng cả thứ hạng. \textbf{Phải đọc cùng nhau}. Ta cũng \textbf{không} dùng ``trung bình cosine similarity'' (vô nghĩa khi so giữa các không gian embedding khác chiều/độ thưa).
+
+\textbf{(2) Khoảng tin cậy \& ý nghĩa thống kê --- ta đã mở rộng eval lên 100 câu để kiểm.} Nâng bộ truy vấn từ 8$\to$25$\to$\textbf{100 câu} siết CI của MRR từ $\pm$0.15 còn $\pm$0.05. \textbf{Nhưng kết luận trung thực càng rõ}: trên truy vấn \textit{giàu từ khoá}, ngay cả với 100 câu các CI \textbf{vẫn chồng lấn} (mọi MRR 0.76--0.89) --- các phương pháp embedding \textbf{không} tách biệt có ý nghĩa khi truy vấn dễ; khác biệt thật chỉ xuất hiện ở \textit{lexical gap} (TN1b, dựa P@k). \textit{Lưu ý phân biệt}: \textbf{corpus} 10.9k review \textit{đủ lớn} để làm kho truy xuất; cái còn thiếu là \textbf{truy vấn lexical-gap có nhãn} (TN1b mới 16 câu) --- hướng mở rộng tiếp theo.
+
+\textbf{(3) Tách dev/test để tune trung thực (chống rò rỉ).} Ban đầu trọng số hybrid được grid-search trên \textit{chính} bộ truy vấn dùng để báo cáo --- đó là ``tune trên tập test''. Ta tách \textbf{50 dev / 50 test} (phân tầng theo aspect): tune trên dev rồi chấm test cho MRR \textbf{0.860}; nếu (sai) tune thẳng trên test thì MRR ``đẹp'' hơn \textbf{0.873}. \textbf{Chênh $\approx$0.013 là mức thổi phồng do overfit}. Đáng chú ý: mức này \textbf{giảm từ $\approx$0.05 (bộ 25 câu) còn $\approx$0.013 (bộ 100 câu)} --- xác nhận thêm rằng bộ eval càng nhỏ thì con số ``tuned'' càng bị thổi phồng. Con số nên báo cáo là loại trung thực (tune-trên-dev).
+
+\textbf{(4) Retrieval-relevance $\neq$ answer-quality.} P@k/MRR chỉ đo ``review đúng aspect lọt top'', \textbf{không} đo câu trả lời có đúng/có bịa. Vì mục tiêu thật của bài toán là \textit{giảm bịa đặt}, ta bổ sung thước đo \textbf{ở mức câu trả lời}: faithfulness (TN5, Mục~\ref{sec:exp5}) và \textbf{numeric-grounding} --- \texttt{scripts/eval\_grounding.py} cho \textbf{100\% (6/6)} con số trong câu trả lời truy được về bằng chứng, và tỉ lệ \textbf{từ chối câu ngoài phạm vi 16.7\%}. Logic harness được kiểm chứng bằng self-test (số bịa bị bắt, số thật được nhận). Đây là điểm khiến metric \textit{khớp với mục tiêu}, không chỉ khớp với tác vụ xếp hạng.
+
+\textbf{Tóm lại}: hệ metric đã được \textit{sửa cho đúng hơn} (đa chỉ số, CI, dev/test, faithfulness/grounding), và chính các chỉ số đó \textbf{tự phơi bày} giới hạn còn lại (bộ eval nhỏ, judge tự thiên vị) --- xem Hạn chế.
 
 % ===================================================================
 \section{Triển khai LLMOps}
@@ -616,6 +730,25 @@ Observability & mỗi truy vấn log latency + token + \textbf{chi phí USD} và
 
 Điểm đáng chú ý là \textbf{vòng lặp train $\to$ deploy} khép kín: mô hình BiLSTM (Lec05) huấn luyện trong notebook được lưu thành artifact, nạp lại bởi package phục vụ, và sử dụng thực sự ở hai nơi --- gán aspect cho dữ liệu Shopee chưa nhãn (làm giàu Knowledge Graph) và phục vụ trực tiếp qua endpoint \texttt{/classify}.
 
+\subsection{Giao diện thí nghiệm (Experiment Dashboard)}
+\label{sec:dashboard}
+
+Ngoài UI hỏi-đáp, hệ thống có \textbf{dashboard thí nghiệm} riêng (\texttt{app/experiments\_ui.py}, \texttt{make ui-exp}) phục vụ phần \textit{research}: nạp trực tiếp số liệu từ \texttt{artifacts/*.json} và \textbf{vẽ lại bảng + biểu đồ} (ablation, embedding kèm CI, No-RAG/RAG/Graph-RAG, F1 từng aspect), kèm tab \textbf{so sánh trực tiếp} cho phép nhập một câu hỏi rồi chạy \textit{song song} 3 chế độ để thấy tận mắt giá trị của retrieval + graph.
+
+\begin{figure}[H]
+  \centering
+  \IfFileExists{figures/dashboard_results.png}{\includegraphics[width=0.92\textwidth]{figures/dashboard_results.png}}{\fbox{dashboard\_results.png}}
+  \caption{Tab \textit{Kết quả thí nghiệm}: bảng tổng hợp + 4 biểu đồ sinh trực tiếp từ \texttt{artifacts/} (ablation 100 truy vấn, embedding $\pm$CI, No-RAG/RAG/Graph-RAG, F1/aspect). Chụp từ \texttt{app/experiments\_ui.py} đang chạy.}
+  \label{fig:dashboard_results}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \IfFileExists{figures/dashboard_compare.png}{\includegraphics[width=0.92\textwidth]{figures/dashboard_compare.png}}{\fbox{dashboard\_compare.png}}
+  \caption{Tab \textit{So sánh trực tiếp}: cùng câu hỏi ``Pin Samsung dùng có lâu không?'' chạy 3 chế độ. No-RAG trả lời chung chung; Graph-RAG bám thống kê KG riêng Samsung (54\% tích cực / 37\% tiêu cực) kèm bằng chứng review --- minh hoạ trực quan ``không dùng vs dùng'' (TN5).}
+  \label{fig:dashboard_compare}
+\end{figure}
+
 % ===================================================================
 \section{Phân công công việc}
 % ===================================================================
@@ -645,22 +778,25 @@ Báo cáo \& trình bày & Báo cáo (Data, NER, RNN) & Báo cáo (Embedding, KG
 % ===================================================================
 
 \subsection{Tóm tắt kết quả}
-Dự án xây dựng pipeline Graph RAG hoàn chỉnh cho đánh giá sản phẩm tiếng Việt trên \textbf{hai dataset} (UIT-ViSFD smartphone + Shopee đa sản phẩm). Hệ thống phủ trọn 6 lecture của môn: biểu diễn từ (TF-IDF/Word2Vec/GloVe), subword/BPE, ngữ nghĩa tổ hợp (Knowledge Graph), BiLSTM (phân loại aspect), và Transformer/attention (PhoBERT + MaxSim re-ranking). So sánh embedding dùng độ đo truy xuất đúng (P@k, MRR); ablation retrieval không rò rỉ metric. Toàn bộ được đóng gói thành \textbf{pipeline LLMOps} (serving API, Gradio UI, observability chi phí, regression gate, Docker/CI) với \textbf{vòng lặp train$\to$deploy} mô hình BiLSTM khép kín.
+Dự án xây dựng pipeline Graph RAG hoàn chỉnh cho đánh giá sản phẩm tiếng Việt trên \textbf{hai dataset} (UIT-ViSFD smartphone + Shopee đa sản phẩm), phủ trọn 6 lecture của môn. Đóng góp định lượng cốt lõi là \textbf{so sánh ``không dùng vs dùng'' ở cả hai mức}: (i) \textit{retrieval} --- baseline Keyword/TF-IDF so với học biểu diễn, và ablation bi-encoder $\to$ +MaxSim $\to$ +graph $\to$ +BM25 (Graph RAG đạt MRR cao nhất \textbf{0.845}, graph boost +0.033 robust); (ii) \textit{câu trả lời} --- No-RAG vs Vanilla-RAG vs Graph-RAG, faithfulness tăng \textbf{47.3 $\to$ 82.2} (TN5), lần đầu định lượng ``RAG giảm bịa đặt''. Đánh giá được làm \textbf{chặt về phương pháp}: đa chỉ số (P@k/MRR/NDCG@5), khoảng tin cậy bootstrap, mở rộng eval lên 100 câu, tách dev/test (đo overfit do tuning $\approx$0.013 MRR), và đo grounding ở mức câu trả lời --- đồng thời \textbf{trung thực phơi bày} các điểm yếu (bộ eval nhỏ, STORAGE F1=0, judge tự thiên vị). Toàn bộ đóng gói thành \textbf{pipeline LLMOps} (serving API, 2 giao diện Gradio, observability chi phí, regression gate, Docker/CI) với \textbf{vòng lặp train$\to$deploy} BiLSTM khép kín.
 
 \subsection{Hạn chế}
 \begin{itemize}
-  \item ``GloVe'' chỉ là xấp xỉ SVD trên đồng xuất hiện mức tài liệu, chưa phải GloVe gốc.
-  \item Tái xếp hạng MaxSim không huấn luyện; chưa fine-tune trên dữ liệu cặp truy vấn--tài liệu.
-  \item Ánh xạ câu hỏi $\to$ aspect dựa trên từ khóa thủ công, chưa bao phủ mọi cách diễn đạt.
-  \item NER dùng mô hình tổng quát + gazetteer, chưa có NER huấn luyện riêng cho domain điện thoại.
-  \item Đánh giá \textit{grounding} hiện ở mức định tính (demo §5.6). Đã xây harness đo \textbf{tự động}: \textbf{numeric-grounding} (mọi con số trong câu trả lời phải truy được về bằng chứng) và \textbf{tỉ lệ từ chối} câu hỏi ngoài phạm vi (\texttt{scripts/eval\_grounding.py}, logic đã được kiểm chứng); con số định lượng đang chờ API LLM ổn định.
+  \item \textbf{Bộ truy vấn đánh giá còn nhỏ} (16--25 câu) $\Rightarrow$ khoảng tin cậy MRR rộng, phần lớn chênh lệch giữa các phương pháp \textit{chưa} đạt ý nghĩa thống kê (Mục~\ref{sec:metric-crit}). Cần $\geq$100 truy vấn, nhiều người soạn, để kết luận chắc.
+  \item \textbf{LLM-judge cùng họ generator} (gpt-4o-mini) ở TN5 $\Rightarrow$ rủi ro tự thiên vị; numeric-grounding (tự động) chỉ là proxy, không bắt được paraphrase-hallucination. Cần người chấm hoặc judge khác họ.
+  \item \textbf{Tỉ lệ từ chối câu ngoài phạm vi còn thấp} (Graph-RAG 12.5\%, grounding-harness 16.7\%): hệ thống vẫn hay trả lời từ cảm xúc thay vì nói ``không có thông số''. Cần prompt/chính sách abstention mạnh hơn.
+  \item \textbf{Phân loại aspect mất cân bằng}: STORAGE F1 = 0, SCREEN recall 0.40 (micro-F1 0.79 che giấu, lộ ra ở macro-F1 0.68). Cần class weighting / oversampling / fine-tune PhoBERT.
+  \item \textbf{Đa domain mới ở mức index}: review Shopee không có nhãn aspect vàng nên chỉ đóng vai nhiễu trong eval, chưa được \textit{đánh giá} như đáp án; thống kê KG cho Shopee dựa trên nhãn BiLSTM \textit{dự đoán} (sai số lan truyền, chưa định lượng).
+  \item ``GloVe'' chỉ là xấp xỉ SVD đồng xuất hiện mức tài liệu; MaxSim không huấn luyện; ánh xạ câu hỏi $\to$ aspect bằng từ khóa thủ công; NER tổng quát + gazetteer (chưa có NER huấn luyện riêng domain).
+  \item \textbf{Chưa chống review giả} --- đe doạ trực tiếp giá trị ``tổng hợp xu hướng'' (thống kê trên review giả sẽ sai).
 \end{itemize}
 
 \subsection{Hướng phát triển}
 \begin{itemize}
-  \item Fine-tune cross-encoder PhoBERT cho re-ranking với nhãn liên quan tách biệt train/test.
-  \item Mở rộng KG với quan hệ sản phẩm--linh kiện và liên kết thực thể (entity linking).
-  \item Phân loại aspect câu hỏi bằng mô hình thay cho từ khóa; đánh giá thêm trên tập dev/test.
+  \item \textbf{Mở rộng bộ đánh giá $\geq$100 truy vấn} + kiểm định ý nghĩa thống kê; thay LLM-judge tự thiên vị bằng người chấm / judge khác họ.
+  \item \textbf{Sửa mất cân bằng aspect} (class weight / focal loss / fine-tune PhoBERT, kỳ vọng macro-F1 $>$0.8); cải thiện abstention cho câu hỏi đòi thông số cứng.
+  \item Fine-tune cross-encoder PhoBERT cho re-ranking với nhãn liên quan tách biệt train/test; phân loại aspect câu hỏi bằng mô hình thay từ khóa.
+  \item Mở rộng KG (quan hệ sản phẩm--linh kiện, entity linking), gán nhãn aspect vàng cho Shopee để \textit{đánh giá} đa domain thật sự, và thêm phát hiện review giả.
 \end{itemize}
 
 % ===================================================================

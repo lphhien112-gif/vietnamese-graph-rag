@@ -54,6 +54,15 @@ def test_detect_brand_gazetteer_variants():
     assert detect_brand("oppo reno") == "OPPO"
 
 
+def test_num_regex_keeps_alphanumeric():
+    """M1 fix: chỉ bỏ SỐ ĐỨNG RIÊNG, GIỮ token chữ-số mang nghĩa (64gb/120hz/5g)."""
+    from vngraphrag.core.data import _NUM_RE
+
+    toks = _NUM_RE.sub(" ", "64gb 13 120hz 5g iphone 13 pro").split()
+    assert "64gb" in toks and "120hz" in toks and "5g" in toks  # giữ token chữ-số
+    assert "13" not in toks  # số đứng một mình bị bỏ
+
+
 def test_build_records_shape_and_gold():
     visfd = pd.DataFrame(
         {

@@ -76,6 +76,19 @@ def _bump(G, u, v, relation):
         G.add_edge(u, v, relation=relation, weight=1)
 
 
+def confidence_note(total: int, aspect: str, min_ok: int = 30) -> str:
+    """Cảnh báo độ tin cậy cho thống kê KG: mẫu quá nhỏ hoặc aspect dữ liệu mỏng/kém.
+
+    Trả chuỗi rỗng nếu đủ tin cậy. STORAGE bị gắn cờ vì toàn corpus chỉ ~91 lượt
+    VÀ classifier BiLSTM đạt F1=0 trên aspect này (node STORAGE không đáng tin)."""
+    parts = []
+    if aspect == "STORAGE":
+        parts.append("aspect STORAGE rất ít dữ liệu, độ tin cậy thấp")
+    if total < min_ok:
+        parts.append(f"mẫu nhỏ n={total}, chỉ nên tham khảo")
+    return "; ".join(parts)
+
+
 def graph_query(G, aspect: str) -> dict:
     out = {}
     if aspect in G:

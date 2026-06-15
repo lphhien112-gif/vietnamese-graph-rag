@@ -15,7 +15,16 @@ from .data import (
 )
 from .embeddings import PhoBERTEncoder, maxsim
 from .index import DocumentIndex
-from .kg import SENT_COLOR, build_kg, graph_query, graph_query_brand, load_kg, product_context, save_kg
+from .kg import (
+    SENT_COLOR,
+    build_kg,
+    confidence_note,
+    graph_query,
+    graph_query_brand,
+    load_kg,
+    product_context,
+    save_kg,
+)
 
 __all__ = [
     "ASPECTS",
@@ -37,6 +46,7 @@ __all__ = [
     "load_kg",
     "graph_query",
     "graph_query_brand",
+    "confidence_note",
     "product_context",
     "SENT_COLOR",
 ]

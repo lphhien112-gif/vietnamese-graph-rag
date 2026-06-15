@@ -76,6 +76,17 @@ def test_product_context_requires_two_tokens():
     assert hits == []
 
 
+def test_confidence_note():
+    """M4 fix: cảnh báo mẫu nhỏ (n<30) và aspect STORAGE dữ liệu mỏng."""
+    from vngraphrag.core import confidence_note
+
+    assert confidence_note(100, "CAMERA") == ""  # đủ tin cậy -> rỗng
+    assert "mẫu nhỏ" in confidence_note(5, "CAMERA")  # n<30
+    assert "STORAGE" in confidence_note(100, "STORAGE")  # STORAGE luôn bị gắn cờ
+    both = confidence_note(2, "STORAGE")  # vừa STORAGE vừa mẫu nhỏ
+    assert "STORAGE" in both and "n=2" in both
+
+
 def test_kg_save_load_roundtrip(tmp_path):
     G = build_kg(*_toy())
     p = tmp_path / "kg.pkl"

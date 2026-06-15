@@ -14,6 +14,7 @@ from ..core import (
     aspect_from_query,
     build_kg,
     build_records,
+    confidence_note,
     detect_brand,
     graph_query,
     graph_query_brand,
@@ -92,6 +93,10 @@ class GraphRAGPipeline:
             for _node, inf in sorted(sd.items(), key=lambda x: -x[1]["count"]):
                 pct = 100 * inf["count"] / tot if tot else 0
                 gctx += f"- {label}/{inf['sentiment']}: {inf['count']} review ({pct:.0f}%)\n"
+            # Cảnh báo độ tin cậy: mẫu quá nhỏ (n<30) hoặc aspect dữ liệu mỏng (STORAGE)
+            note = confidence_note(tot, asp)
+            if note:
+                gctx += f"  (lưu ý: {note})\n"
         for prod, avg, ncnt in product_context(self.kg, question):
             gctx += f"- Sản phẩm '{prod}': {avg:.1f} sao ({ncnt} review)\n"
         return gctx

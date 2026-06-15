@@ -24,43 +24,118 @@ from ..config import Config
 from ..core import ASPECTS, DocumentIndex, aspect_from_query, aspects_from_text, maxsim
 from ..rag.retrieval import _nz
 
-# ── 25 eval queries — bao phủ đủ 10 khía cạnh ──────────────────────────────
+# ── 100 eval queries — 10 câu/aspect (mở rộng từ 25 để siết khoảng tin cậy) ──
 EVAL_QUERIES = [
-    # CAMERA (4)
+    # CAMERA (10)
     ("camera chụp ảnh đẹp không", "CAMERA"),
     ("ảnh selfie có rõ không", "CAMERA"),
     ("chụp đêm có tốt không", "CAMERA"),
     ("zoom camera xa chụp có nét không", "CAMERA"),
-    # BATTERY (3)
+    ("camera quay video có mượt không", "CAMERA"),
+    ("ống kính chụp chân dung xoá phông đẹp không", "CAMERA"),
+    ("camera trước chụp có sắc nét không", "CAMERA"),
+    ("chụp ảnh thiếu sáng có bị nhiễu không", "CAMERA"),
+    ("camera sau chụp cận cảnh thế nào", "CAMERA"),
+    ("chất lượng ảnh chụp ban ngày ra sao", "CAMERA"),
+    # BATTERY (10)
     ("pin trâu dùng lâu không", "BATTERY"),
     ("sạc pin nhanh không", "BATTERY"),
     ("pin có bền không tụt pin nhanh", "BATTERY"),
-    # SCREEN (3)
+    ("dung lượng pin có lớn không", "BATTERY"),
+    ("pin dùng được mấy tiếng một lần sạc", "BATTERY"),
+    ("sạc pin có làm nóng máy không", "BATTERY"),
+    ("pin có bị chai sau thời gian dùng không", "BATTERY"),
+    ("pin xem phim chơi game tụt nhanh không", "BATTERY"),
+    ("thời lượng pin dùng cả ngày có đủ không", "BATTERY"),
+    ("pin sạc bao lâu thì đầy", "BATTERY"),
+    # SCREEN (10)
     ("màn hình hiển thị sắc nét", "SCREEN"),
     ("cảm ứng có nhạy không", "SCREEN"),
     ("độ phân giải màn hình cao không", "SCREEN"),
-    # PERFORMANCE (3)
+    ("màn hình ngoài nắng có nhìn rõ không", "SCREEN"),
+    ("tần số quét màn hình có mượt không", "SCREEN"),
+    ("màu sắc màn hình hiển thị có đẹp không", "SCREEN"),
+    ("màn hình có bị ám màu không", "SCREEN"),
+    ("kích thước màn hình xem phim có đã không", "SCREEN"),
+    ("độ sáng màn hình có đủ dùng không", "SCREEN"),
+    ("viền màn hình có mỏng không", "SCREEN"),
+    # PERFORMANCE (10)
     ("máy chạy mượt hiệu năng tốt", "PERFORMANCE"),
     ("chip mạnh không bị lag giật", "PERFORMANCE"),
     ("RAM xử lý nhanh mượt không", "PERFORMANCE"),
-    # STORAGE (2)
+    ("chơi game nặng có giật lag không", "PERFORMANCE"),
+    ("mở nhiều ứng dụng có mượt không", "PERFORMANCE"),
+    ("cấu hình máy có mạnh không", "PERFORMANCE"),
+    ("máy có bị đơ treo khi dùng không", "PERFORMANCE"),
+    ("hiệu năng đa nhiệm có tốt không", "PERFORMANCE"),
+    ("tốc độ xử lý có nhanh không", "PERFORMANCE"),
+    ("chip xử lý đồ hoạ có khoẻ không", "PERFORMANCE"),
+    # STORAGE (10)
     ("bộ nhớ trong bao nhiêu GB", "STORAGE"),
     ("dung lượng lưu trữ ROM có đủ không", "STORAGE"),
-    # DESIGN (2)
+    ("bộ nhớ có lắp thẻ nhớ mở rộng được không", "STORAGE"),
+    ("lưu được nhiều ảnh video không bộ nhớ", "STORAGE"),
+    ("dung lượng bộ nhớ có lớn không", "STORAGE"),
+    ("ROM còn trống nhiều không bộ nhớ", "STORAGE"),
+    ("bộ nhớ trong có nhanh đầy không", "STORAGE"),
+    ("máy có hỗ trợ thẻ nhớ ngoài không", "STORAGE"),
+    ("dung lượng lưu trữ cài game có đủ không", "STORAGE"),
+    ("bộ nhớ máy có đủ chứa dữ liệu không", "STORAGE"),
+    # DESIGN (10)
     ("thiết kế đẹp cầm thoải mái", "DESIGN"),
     ("máy mỏng nhẹ kiểu dáng đẹp không", "DESIGN"),
-    # PRICE (2)
+    ("chất liệu vỏ máy có cao cấp không", "DESIGN"),
+    ("màu sắc máy thiết kế có đẹp không", "DESIGN"),
+    ("cầm máy có chắc tay không thiết kế", "DESIGN"),
+    ("kiểu dáng có sang trọng không", "DESIGN"),
+    ("mặt lưng máy thiết kế có đẹp không", "DESIGN"),
+    ("trọng lượng máy mỏng nhẹ không", "DESIGN"),
+    ("thiết kế có hợp thời trang không", "DESIGN"),
+    ("máy nhìn ngoài thiết kế có đẹp không", "DESIGN"),
+    # PRICE (10)
     ("giá hợp lý hay đắt so với chất lượng", "PRICE"),
     ("có đáng tiền không tầm giá này", "PRICE"),
-    # FEATURES (2)
+    ("giá bán có rẻ không", "PRICE"),
+    ("tầm giá này có đáng mua không", "PRICE"),
+    ("mức giá có phù hợp túi tiền không", "PRICE"),
+    ("giá thành so với cấu hình có hời không", "PRICE"),
+    ("máy này giá có mắc quá không", "PRICE"),
+    ("giá có cao hơn đắt hơn không", "PRICE"),
+    ("bỏ tiền mua giá này có xứng đáng không", "PRICE"),
+    ("giá khuyến mãi có rẻ tốt không", "PRICE"),
+    # FEATURES (10)
     ("loa âm thanh chất lượng tính năng", "FEATURES"),
     ("wifi bluetooth NFC vân tay bảo mật", "FEATURES"),
-    # SER&ACC (2)
+    ("loa ngoài nghe nhạc có to không", "FEATURES"),
+    ("cảm biến vân tay có nhạy không", "FEATURES"),
+    ("có hỗ trợ NFC thanh toán không tính năng", "FEATURES"),
+    ("bảo mật khuôn mặt có nhanh không", "FEATURES"),
+    ("âm thanh loa xem phim có hay không", "FEATURES"),
+    ("kết nối wifi sóng có ổn định không", "FEATURES"),
+    ("có jack tai nghe cảm biến không", "FEATURES"),
+    ("tính năng bảo mật vân tay có tốt không", "FEATURES"),
+    # SER&ACC (10)
     ("nhân viên tư vấn bảo hành dịch vụ", "SER&ACC"),
     ("giao hàng đóng gói shop phục vụ", "SER&ACC"),
-    # GENERAL (2)
+    ("bảo hành có nhanh không dịch vụ", "SER&ACC"),
+    ("shop tư vấn có nhiệt tình không", "SER&ACC"),
+    ("phụ kiện đi kèm có đầy đủ không", "SER&ACC"),
+    ("dịch vụ hậu mãi bảo hành có tốt không", "SER&ACC"),
+    ("giao hàng nhanh shop đóng gói cẩn thận", "SER&ACC"),
+    ("đổi trả bảo hành có dễ không", "SER&ACC"),
+    ("cửa hàng phục vụ có chu đáo không", "SER&ACC"),
+    ("nhân viên giao hàng có thân thiện không", "SER&ACC"),
+    # GENERAL (10)
     ("máy có tốt không nói chung tổng thể", "GENERAL"),
     ("sản phẩm ổn điện thoại dùng tốt", "GENERAL"),
+    ("điện thoại này có đáng mua không", "GENERAL"),
+    ("nhìn chung máy có ngon không", "GENERAL"),
+    ("sản phẩm có chất lượng tốt không", "GENERAL"),
+    ("tổng thể trải nghiệm điện thoại có tốt không", "GENERAL"),
+    ("điện thoại dùng có ổn định không", "GENERAL"),
+    ("có nên mua máy này không", "GENERAL"),
+    ("máy này dùng tổng quan thế nào", "GENERAL"),
+    ("sản phẩm điện thoại có đáng giới thiệu không", "GENERAL"),
 ]
 
 # Ablation study: từng thành phần thêm vào
@@ -73,16 +148,26 @@ CONFIGS: dict[str, tuple[float, float, float, float]] = {
 }
 
 
-def _components(query: str, index, encoder, bm25, n_cand: int = 50):
-    """Tính 4 score vectors cho 1 query trên top-n_cand dense candidates."""
+def _components(query: str, index, encoder, bm25, n_cand: int = 50, tok_cache: dict | None = None):
+    """Tính 4 score vectors cho 1 query trên top-n_cand dense candidates.
+
+    `tok_cache` (dict doc_idx -> token-embedding) dùng chung giữa các truy vấn để
+    KHÔNG encode lại token của cùng một doc nhiều lần (candidate lặp giữa các query)."""
     qv = encoder.encode_mean([query])[0]
     cand, sims = index.search(qv, n_cand)
     bi = sims[cand]
 
+    def doc_tok(i: int):
+        if tok_cache is None:
+            return encoder.encode_tokens(index.records[i]["raw"])
+        c = tok_cache.get(i)
+        if c is None:
+            c = encoder.encode_tokens(index.records[i]["raw"])
+            tok_cache[i] = c
+        return c
+
     q_tok = encoder.encode_tokens(query)
-    attn = np.array(
-        [maxsim(q_tok, encoder.encode_tokens(index.records[i]["raw"])) for i in cand]
-    )
+    attn = np.array([maxsim(q_tok, doc_tok(int(i))) for i in cand])
 
     q_asp = aspect_from_query(query)
     graph = np.array(
@@ -136,8 +221,9 @@ def run_eval(cfg: Config) -> dict:
     tokenized = [r["raw"].lower().split() for r in index.records]
     bm25 = BM25Okapi(tokenized)
 
-    # Cache score components cho mỗi query
-    cache = {q: _components(q, index, encoder, bm25) for q, _ in EVAL_QUERIES}
+    # Cache score components cho mỗi query (chia sẻ tok_cache giữa các query -> nhanh hơn)
+    _tok_cache: dict = {}
+    cache = {q: _components(q, index, encoder, bm25, tok_cache=_tok_cache) for q, _ in EVAL_QUERIES}
 
     results: dict = {}
     for name, (wb, wa, wg, wbm) in CONFIGS.items():
