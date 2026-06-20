@@ -181,18 +181,18 @@ Graph RAG~\cite{edge2024graphrag} bổ sung bước \textbf{graph traversal} và
 
 \begin{table}[H]
 \centering
-\caption{Tổng hợp các dataset sử dụng trong dự án}
-\begin{tabular}{llrl}
+\caption{Các dataset trong dự án. Cột \textbf{Dùng?} phân biệt rõ dataset \textit{thực sự dùng trong pipeline} với phương án chỉ tham khảo.}
+\begin{tabular}{llllc}
 \toprule
-\textbf{Dataset} & \textbf{Tác vụ} & \textbf{Kích thước} & \textbf{Nguồn} \\
+\textbf{Dataset} & \textbf{Tác vụ} & \textbf{Kích thước} & \textbf{Nguồn} & \textbf{Dùng?} \\
 \midrule
-UIT-ViSFD & Aspect-Based Sentiment & 11,122 comments & Shopee \\
-Shopee reviews & Review đa sản phẩm & 3,154 reviews & GitHub (nhtlongcs) \\
-PhoNER\_COVID19 & NER (tham khảo) & domain COVID & HuggingFace \\
+UIT-ViSFD & Aspect-Based Sentiment & 11.122 comment & Shopee & \checkmark \\
+Shopee reviews & Review đa sản phẩm & 3.154 review & GitHub (nhtlongcs) & \checkmark \\
+PhoNER\_COVID19 & NER (đã cân nhắc) & domain COVID & HuggingFace & $\times$ \\
 \bottomrule
 \end{tabular}
 \\[4pt]
-{\small\textit{Ghi chú: PhoNER\_COVID19 thuộc domain COVID nên không phù hợp gán nhãn thực thể sản phẩm; chỉ tải về tham khảo. Việc trích xuất thương hiệu dùng NER tổng quát (\texttt{underthesea}) kết hợp gazetteer.}}
+{\small\textit{Ghi chú: PhoNER\_COVID19 là \textbf{phương án domain-transfer đã cân nhắc và loại bỏ}, KHÔNG nằm trong pipeline: (i) \textit{sai domain} (tin tức COVID, không phải review TMĐT), và (ii) tập nhãn của nó (\texttt{PATIENT}, \texttt{SYMPTOM}, \texttt{ORGANIZATION}\ldots) \textbf{không có loại BRAND/PRODUCT}. Vì thương hiệu là tập thực thể \textit{đóng, biết trước}, ta dùng \textbf{gazetteer} (đúng công cụ cho tập đóng) + NER tổng quát \texttt{underthesea} thay vì NER học máy --- bằng chứng ở TN2: ORG chỉ 6/800 vs gazetteer 72/800.}}
 \end{table}
 
 \subsection{Dataset chính: UIT-ViSFD}
@@ -361,12 +361,93 @@ NER tổng quát của \texttt{underthesea} (nhãn PER/LOC/ORG) trên dữ liệ
   \label{fig:kg}
 \end{figure}
 
-Đồ thị có hướng (NetworkX) gồm 3 loại node: \texttt{brand}, \texttt{aspect} (10 aspect gồm SER\&ACC) và \texttt{aspect\#sentiment}. Cạnh \texttt{brand}$\to$\texttt{aspect} và \texttt{aspect}$\to$\texttt{sentiment} mang trọng số là số review. Quan trọng hơn, cạnh \texttt{brand}$\to$\texttt{aspect\#sentiment} (trọng số = số review của riêng hãng) cho phép truy vấn phân bố cảm xúc \textbf{theo từng hãng cụ thể}: vd.\ hỏi ``pin Samsung'' trả về thống kê của riêng Samsung (n=126) thay vì gộp toàn corpus (n=3.604) --- nhờ đó câu trả lời đúng trọng tâm câu hỏi thay vì lấy số liệu chung chung.
+KG ở đây \textbf{không chỉ là hình minh hoạ} mà là một \textbf{cơ sở tri thức có cấu trúc} được truy vấn lúc suy luận. Phần này trình bày đầy đủ: (a) cách biểu diễn tri thức, (b) thuật toán xây dựng, (c) tham số \& ngưỡng, (d) cách tích hợp vào RAG.
+
+\subsubsection*{(a) Biểu diễn tri thức --- lược đồ (schema)}
+Tri thức được biểu diễn bằng \textbf{đồ thị có hướng, có trọng số} $G=(V,E)$ (NetworkX \texttt{DiGraph}); mỗi cạnh là một \textbf{bộ ba} $(h, r, t)$ kèm \textbf{trọng số $w$ = số review chứng thực} quan hệ đó. Vd.\ bộ ba thực \texttt{(Samsung, brand\_sentiment, BATTERY\#Positive, $w$=68)} đọc là ``68 review của Samsung khen pin''.
+
+\begin{table}[H]
+\centering\small
+\caption{Lược đồ KG: 5 loại node và quan hệ (cạnh). Trọng số mọi cạnh = số review.}
+\begin{tabular}{p{2.7cm}p{2.3cm}p{7.2cm}}
+\toprule
+\textbf{Loại node} ($|V|$) & \textbf{Thuộc tính} & \textbf{Ý nghĩa} \\
+\midrule
+\texttt{brand} (12) & --- & thương hiệu (từ gazetteer) \\
+\texttt{aspect} (10) & --- & khía cạnh, gồm SER\&ACC \\
+\texttt{aspect\#sentiment} (30) & \texttt{sentiment} & cặp (khía cạnh, cảm xúc) = 10$\times$3 \\
+\texttt{shop} (24) & --- & gian hàng Shopee \\
+\texttt{product} (26) & \texttt{avg\_rating}, \texttt{n\_reviews} & sản phẩm Shopee \\
+\midrule
+\textbf{Quan hệ $r$ ($h\to t$)} & \multicolumn{2}{l}{\textbf{Ngữ nghĩa (trọng số = số review)}} \\
+\midrule
+\texttt{reviewed\_on} & \multicolumn{2}{l}{\texttt{brand}$\to$\texttt{aspect} --- hãng được nhắc về khía cạnh} \\
+\texttt{has\_sentiment} & \multicolumn{2}{l}{\texttt{aspect}$\to$\texttt{aspect\#sentiment} --- phân bố cảm xúc TOÀN corpus (fallback)} \\
+\texttt{brand\_sentiment} & \multicolumn{2}{l}{\texttt{brand}$\to$\texttt{aspect\#sentiment} --- cảm xúc RIÊNG từng hãng \textbf{(cạnh then chốt)}} \\
+\texttt{sells} & \multicolumn{2}{l}{\texttt{shop}$\to$\texttt{product}} \\
+\texttt{mentions} & \multicolumn{2}{l}{\texttt{product}$\to$\texttt{aspect} --- aspect do BiLSTM dự đoán} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent Thiết kế then chốt: cạnh \texttt{brand\_sentiment} cho phép truy vấn cảm xúc \textbf{theo từng hãng}: hỏi ``pin Samsung'' trả thống kê riêng Samsung ($n$=126) thay vì gộp toàn corpus ($n$=3.604) --- câu trả lời đúng trọng tâm thay vì chung chung.
+
+\subsubsection*{(b) Thuật toán xây dựng (offline)}
+\begin{algorithm}[H]
+\caption{BuildKG --- dựng Knowledge Graph từ review (hiện thực \texttt{core/kg.py})}
+\begin{algorithmic}[1]
+\State $G \gets$ DiGraph rỗng; thêm 10 node \texttt{aspect}
+\For{mỗi review $d$ trong UIT-ViSFD \textbf{(nhãn vàng)}}
+  \State $b \gets$ \textsc{DetectBrand}($d$) \Comment{gazetteer 16 brand}
+  \For{mỗi cặp $(\alpha, s) \in$ \textsc{ParseLabel}($d$)}
+    \State bump cạnh $\alpha \!\to\! \alpha\#s$ \quad(\texttt{has\_sentiment}, toàn corpus)
+    \If{$b \neq$ Unknown}
+      \State bump $b \!\to\! \alpha$ (\texttt{reviewed\_on}); \; bump $b \!\to\! \alpha\#s$ (\texttt{brand\_sentiment})
+    \EndIf
+  \EndFor
+\EndFor
+\For{mỗi review $d$ trong Shopee \textbf{(KHÔNG nhãn)}}
+  \State $A \gets$ \textsc{BiLSTM.Predict}($d$) \Comment{aspect dự đoán, ngưỡng sigmoid $0.5$}
+  \State thêm node \texttt{shop}, \texttt{product}; bump \texttt{shop}$\to$\texttt{product} (\texttt{sells})
+  \For{mỗi $\alpha \in A$} bump \texttt{product}$\to\alpha$ (\texttt{mentions}) \EndFor
+  \State cập nhật \texttt{product.avg\_rating}, \texttt{n\_reviews}
+\EndFor
+\State \Return $G$ \Comment{lưu \texttt{kg.pkl}, gắn version theo (model, \#record)}
+\end{algorithmic}
+\end{algorithm}
+
+\subsubsection*{(c) Tham số \& ngưỡng --- ``build tới ngưỡng nào thì tối ưu''}
+\begin{table}[H]
+\centering\small
+\caption{Các ngưỡng/tham số khi xây \& dùng KG, kèm căn cứ.}
+\begin{tabular}{p{3.1cm}p{1.5cm}p{7.4cm}}
+\toprule
+\textbf{Tham số} & \textbf{Giá trị} & \textbf{Vai trò \& căn cứ} \\
+\midrule
+$\tau_{\text{conf}}$ (\texttt{MIN\_OK}) & \textbf{30} & $n$ tối thiểu để một thống kê cảm xúc theo hãng \textit{đáng tin}; dưới ngưỡng $\Rightarrow$ gắn cờ ``mẫu nhỏ'' (xem căn cứ thống kê bên dưới). \\
+Ngưỡng BiLSTM & 0.5 & ngưỡng sigmoid gán aspect đa nhãn cho review Shopee (\texttt{aspect\_clf.py}). \\
+Trùng token sản phẩm & $\geq$2 & chống khớp giả \texttt{product}$\leftrightarrow$câu hỏi do 1 token chung; có regression test (\texttt{test\_kg.py}). \\
+Gazetteer brand & 16 key & nguồn tạo node \texttt{brand} vì NER tổng quát gần như không sinh ORG (TN2). \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Vì sao $\tau_{\text{conf}}=30$?} Với ước lượng tỉ lệ $\hat p$ (vd.\ \% tích cực), nửa độ rộng khoảng tin cậy 95\% xấp xỉ $1.96\sqrt{\hat p(1-\hat p)/n}$. Tại $n=30$ (xấu nhất $\hat p{=}0.5$) sai số $\approx\pm0.18$; tại $n=126$ (pin Samsung) còn $\pm0.087$. Vậy $30$ là \textbf{sàn hợp lý}: dưới mức này \% cảm xúc dao động quá lớn nên hệ thống gắn cờ ``mẫu nhỏ'' thay vì khẳng định (hiện thực \texttt{confidence\_note}, dùng ở \texttt{pipeline.\_graph\_context}). Mức ``tối ưu'' của KG vì thế \textbf{bị chặn bởi dữ liệu}, không phải tham số: chỉ \textbf{47/120 ô} hãng$\times$aspect đạt $\tau_{\text{conf}}$ (xem Mục~\ref{sec:kg-data}).
+
+\subsubsection*{(d) Tích hợp vào RAG (lúc truy vấn)}
+Hàm \texttt{\_graph\_context} (\texttt{rag/pipeline.py}) biến KG thành ngữ cảnh cho LLM:
+\begin{enumerate}[leftmargin=1.5cm,itemsep=0pt]
+  \item $\alpha\gets$\texttt{aspect\_from\_query}($q$); \; $b\gets$\texttt{detect\_brand}($q$).
+  \item Nếu $b$ xác định: $sd\gets$\texttt{graph\_query\_brand}($b,\alpha$); nếu rỗng $\to$ fallback \texttt{graph\_query}($\alpha$) toàn corpus.
+  \item Tính \% cảm xúc từ trọng số cạnh; nếu $n<\tau_{\text{conf}}$ hoặc $\alpha{=}$STORAGE $\Rightarrow$ thêm cảnh báo độ tin cậy.
+  \item \texttt{product\_context}($q$) cho câu hỏi đa sản phẩm (yêu cầu $\geq$2 token trùng).
+  \item Ghép thống kê vào \textbf{prompt grounded} $\to$ LLM (Module 6).
+\end{enumerate}
 
 \subsection{Độ đủ của dữ liệu cho Knowledge Graph}
 \label{sec:kg-data}
 
-Một câu hỏi phản biện: \textit{dữ liệu có đủ dày để KG trả lời thống kê theo hãng không?} Ta phân tích trực tiếp KG (\texttt{scripts/analyze\_kg.py}): 102 node (12 brand, 10 aspect, 30 aspect\#sentiment, 24 shop, 26 product), 614 cạnh.
+Một câu hỏi phản biện: \textit{dữ liệu có đủ dày để KG đạt ngưỡng tin cậy $\tau_{\text{conf}}{=}30$ (Mục~(c)) không?} Ta phân tích trực tiếp KG (\texttt{scripts/analyze\_kg.py}): 102 node (12 brand, 10 aspect, 30 aspect\#sentiment, 24 shop, 26 product), 614 cạnh.
 
 \begin{table}[H]
 \centering
