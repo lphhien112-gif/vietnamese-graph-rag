@@ -97,8 +97,9 @@ def main() -> int:
     out.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
 
     # In bảng + so sánh với bộ keyword-rich (TN1) nếu có.
-    kw_path = Path(cfg.artifacts_dir) / "embedding_eval.json"
-    kw = json.loads(kw_path.read_text(encoding="utf-8")) if kw_path.exists() else {}
+    kw_path = Path(cfg.artifacts_dir) / "embeddings_full.json"
+    _kwfull = json.loads(kw_path.read_text(encoding="utf-8")) if kw_path.exists() else {}
+    kw = _kwfull.get("sets", {}).get("keyword_rich", {})
 
     print("\n=== LEXICAL-GAP (P@5 / P@10 / MRR) ===")
     print(f"{'Method':12} {'P@5':>7} {'P@10':>7} {'MRR':>7}   | {'MRR keyword-rich (TN1)':>22}")
